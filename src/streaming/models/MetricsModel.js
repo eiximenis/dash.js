@@ -259,7 +259,7 @@ function MetricsModel() {
         vo.manifestInfo = mpd;
 
         getMetricsFor(mediaType).DVRInfo.push(vo);
-        metricAdded(mediaType, adapter.metricsList.DVR_INFO, vo);
+        metricAdded(mediaType, 'DVRInfo', vo);
 
         return vo;
     }
