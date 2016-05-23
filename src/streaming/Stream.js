@@ -33,11 +33,13 @@ import StreamProcessor from './StreamProcessor';
 import MediaController from './controllers/MediaController';
 import EventController from './controllers/EventController';
 import FragmentController from './controllers/FragmentController';
+import MssFragmentController from '../mss/MssFragmentController';
 import AbrController from './controllers/AbrController';
 import VideoModel from './models/VideoModel';
 import MetricsModel from './models/MetricsModel';
 import PlaybackController from './controllers/PlaybackController';
 import DashHandler from '../dash/DashHandler';
+import MssHandler from '../mss/MssHandler';
 import SegmentBaseLoader from '../dash/SegmentBaseLoader';
 import DashMetrics from '../dash/DashMetrics';
 import EventBus from '../core/EventBus';
@@ -93,8 +95,13 @@ function Stream(config) {
         playbackController = PlaybackController(context).getInstance();
         abrController = AbrController(context).getInstance();
         mediaController = MediaController(context).getInstance();
-        fragmentController = dashjs.MssFragmentController().create();
-        //fragmentController = FragmentController(context).create();
+        
+        if (context.type==="mss") {
+            fragmentController = MssFragmentController(context).create();    
+        }
+        else {
+          fragmentController = FragmentController(context).create();  
+        }
         textSourceBuffer = TextSourceBuffer(context).getInstance();
 
         eventBus.on(Events.BUFFERING_COMPLETED, onBufferingCompleted, instance);
@@ -303,20 +310,29 @@ function Stream(config) {
             baseURLController: baseURLController
         });
         segmentBaseLoader.initialize();
-
-        let handler = DashHandler(context).create({
-            segmentBaseLoader: segmentBaseLoader,
-            timelineConverter: timelineConverter,
-            dashMetrics: DashMetrics(context).getInstance(),
-            metricsModel: MetricsModel(context).getInstance(),
-            baseURLController: baseURLController
-        });
         
-        handler = new dashjs.MssHandler().create({
-            timeLineConverter: timelineConverter, 
-            segmentBaseLoader: segmentBaseLoader
-        });
+        let handler;
+        
+        if (context.type === "dash") {
 
+            handler = DashHandler(context).create({
+                segmentBaseLoader: segmentBaseLoader,
+                timelineConverter: timelineConverter,
+                dashMetrics: DashMetrics(context).getInstance(),
+                metricsModel: MetricsModel(context).getInstance(),
+                baseURLController: baseURLController
+            });
+        }
+        else if (context.type === "mss") {
+            handler = MssHandler(context).create({
+                timelineConverter: timelineConverter, 
+                segmentBaseLoader: segmentBaseLoader
+            });
+        }
+        else {
+            handler = null;
+            log('Invalid media type: ' + context.type + ". No handler can't be created.");
+        }
 
         return handler;
     }

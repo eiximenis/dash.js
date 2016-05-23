@@ -307,7 +307,7 @@ function DashParser(/*config*/) {
         return result;
     }
 
-    function parse(data, xlinkController) {
+    function parse(data, {xlinkController}) {
 
         var converter = new X2JS(matchers, '', true);
         var iron = new ObjectIron(getDashMap());

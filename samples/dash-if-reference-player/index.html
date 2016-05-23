@@ -97,6 +97,16 @@
         <div class="row">
             <div class="input-group">
                 <div class="input-group-btn">
+                        <a role="button" data-toggle="dropdown" class="btn btn-primary" data-target="#" href="/page.html">
+                            {{selectedType}} <span class="caret"></span>
+                        </a>
+                        <ul class="dropdown-menu multi-level" aria-labelledby="dropdownMenu">
+                            <li  ng-repeat="type in ['dash','mss']">
+                                <a ng-click="setType(type)">{{type}}</a>
+                            </li>
+                        </ul>            
+                </div>            
+                <div class="input-group-btn">
                     <a role="button" data-toggle="dropdown" class="btn btn-primary" data-target="#" href="/page.html">
                         Sample Streams <span class="caret"></span>
                     </a>

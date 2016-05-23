@@ -67,6 +67,9 @@ import DashManifestModel from '../dash/models/DashManifestModel';
 import DashMetrics from '../dash/DashMetrics';
 import TimelineConverter from '../dash/utils/TimelineConverter';
 
+// Mss
+import MssParser from '../mss/MssParser'
+
 /**
  * @module MediaPlayer
  * @description The MediaPlayer is the primary dash.js Module and a Facade to build your player around.
@@ -81,6 +84,15 @@ function MediaPlayer() {
     const MEDIA_PLAYER_NOT_INITIALIZED_ERROR = 'MediaPlayer not initialized!';
 
     let context = this.context;
+    
+    if (arguments[0] && arguments[0].type) {
+        context.type = arguments[0].type;
+    }
+    else {
+        context.type='dash';
+    }
+    
+    
     let eventBus = EventBus(context).getInstance();
     let debug = Debug(context).getInstance();
     let log = debug.log;
@@ -1790,8 +1802,10 @@ function MediaPlayer() {
 
     function createManifestParser() {
         //TODO-Refactor Need to be able to switch this create out so will need API to set which parser to use?
-        return dashjs.MssParser().create();
-        //return DashParser(context).create();
+        if (context.type === "mss") {
+            return MssParser(context).create();    
+        }
+        return DashParser(context).create();
     }
 
     function createAdaptor() {

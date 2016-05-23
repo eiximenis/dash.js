@@ -18,119 +18,143 @@ import Events from '../core/events/Events';
 import EventBus from '../core/EventBus';
 import SegmentsGetter from '../dash/utils/SegmentsGetter';
 import FragmentRequest from '../streaming/vo/FragmentRequest.js';
+import Debug from '../core/Debug';
+
+const SEGMENTS_UNAVAILABLE_ERROR_CODE = 1;
 
 function MssHandler(config) {
-    "use strict";
-    debugger;
+    
+    let rslt={};            // TODO!!! Edu
+    
+    let instance,
+        type,
+        currentTime,
+        earliestTime;
     
     let context = this.context;
+    let log = Debug(context).getInstance().log;
     let streamProcessor, requestedTime, segmentsGetter, isDynamic, index
     let eventBus = EventBus(context).getInstance();
     let segmentBaseLoader = config.segmentBaseLoader;
-    let timelineConverter = config.timeLineConverter;
+    let timelineConverter = config.timelineConverter;
+    
+    function setup() {
+        index = -1;
+        currentTime = 0;
+        earliestTime = NaN;
+        eventBus.on(Events.INITIALIZATION_LOADED, onInitializationLoaded, instance);
+        eventBus.on(Events.SEGMENTS_LOADED, onSegmentsLoaded, instance);
+    }
+   
+   
+    function onInitializationLoaded(e) {
+        var representation = e.representation;
+        log("[MssHandler] onInitializationLoaded");
+    }
+    
+    function onSegmentsLoaded(e) {
+        log("[MssHandler] onSegmentsLoaded");
+    }
 
     
     var getAudioChannels = function(adaptation, representation) {
-        debugger;
-            var channels = 1;
+        var channels = 1;
 
-            if (adaptation.audioChannels) {
-                channels = adaptation.audioChannels;
-            } else if (representation.audioChannels) {
-                channels = representation.audioChannels;
-            }
+        if (adaptation.audioChannels) {
+            channels = adaptation.audioChannels;
+        } else if (representation.audioChannels) {
+            channels = representation.audioChannels;
+        }
 
-            return channels;
-        },
+        return channels;
+    };
+    
+    var getAudioSamplingRate = function(adaptation, representation) {
+        var samplingRate = 1;
 
-        getAudioSamplingRate = function(adaptation, representation) {
-            debugger;
-            var samplingRate = 1;
+        if (adaptation.audioSamplingRate) {
+            samplingRate = adaptation.audioSamplingRate;
+        } else {
+            samplingRate = representation.audioSamplingRate;
+        }
 
-            if (adaptation.audioSamplingRate) {
-                samplingRate = adaptation.audioSamplingRate;
-            } else {
-                samplingRate = representation.audioSamplingRate;
-            }
+        return samplingRate;
+    };
+    // Generates initialization segment data from representation information
+    // by using mp4lib library
+    var getInitData = function(representation) {
+        var manifest = rslt.manifestModel.getValue(),
+            adaptation,
+            realAdaptation,
+            realRepresentation,
+            track,
+            codec;
 
-            return samplingRate;
-        },
-
-        // Generates initialization segment data from representation information
-        // by using mp4lib library
-        getInitData = function(representation) {
-            debugger;
-            var manifest = rslt.manifestModel.getValue(),
-                adaptation,
-                realAdaptation,
-                realRepresentation,
-                track,
-                codec;
-
-            if (representation.initData) {
-                return representation.initData;
-            }
-
-            // Get required media information from manifest  to generate initialisation segment
-            adaptation = representation.adaptation;
-            realAdaptation = manifest.Period_asArray[adaptation.period.index].AdaptationSet_asArray[adaptation.index];
-            realRepresentation = realAdaptation.Representation_asArray[representation.index];
-
-            track = new MediaPlayer.vo.Mp4Track();
-            track.type = rslt.getType() || 'und';
-            track.trackId = adaptation.index + 1; // +1 since track_id shall start from '1'
-            track.timescale = representation.timescale;
-            track.duration = representation.adaptation.period.duration;
-            track.codecs = realRepresentation.codecs;
-            track.codecPrivateData = realRepresentation.codecPrivateData;
-            track.bandwidth = realRepresentation.bandwidth;
-
-            if (track.type !== 'text') {
-                codec = realRepresentation.mimeType + ';codecs="' + realRepresentation.codecs + '"';
-                if (!this.capabilities.supportsCodec(this.videoModel.getElement(), codec)) {
-                    throw {
-                        name: MediaPlayer.dependencies.ErrorHandler.prototype.MEDIA_ERR_CODEC_UNSUPPORTED,
-                        message: "Codec is not supported",
-                        data: {
-                            codec: codec
-                        }
-                    };
-                }
-            }
-
-            // DRM Protected Adaptation is detected
-            if (realAdaptation.ContentProtection_asArray && (realAdaptation.ContentProtection_asArray.length > 0)) {
-                track.contentProtection = realAdaptation.ContentProtection_asArray;
-            }
-
-            // Video related informations
-            track.width = realRepresentation.width || realAdaptation.maxWidth;
-            track.height = realRepresentation.height || realAdaptation.maxHeight;
-
-            // Audio related informations
-            track.language = realAdaptation.lang ? realAdaptation.lang : 'und';
-
-            track.channels = getAudioChannels(realAdaptation, realRepresentation);
-            track.samplingRate = getAudioSamplingRate(realAdaptation, realRepresentation);
-
-            representation.initData = rslt.mp4Processor.generateInitSegment([track]);
-            
+        if (representation.initData) {
             return representation.initData;
+        }
 
-        };
+        // Get required media information from manifest  to generate initialisation segment
+        adaptation = representation.adaptation;
+        realAdaptation = manifest.Period_asArray[adaptation.period.index].AdaptationSet_asArray[adaptation.index];
+        realRepresentation = realAdaptation.Representation_asArray[representation.index];
+
+        track = new MediaPlayer.vo.Mp4Track();
+        track.type = rslt.getType() || 'und';
+        track.trackId = adaptation.index + 1; // +1 since track_id shall start from '1'
+        track.timescale = representation.timescale;
+        track.duration = representation.adaptation.period.duration;
+        track.codecs = realRepresentation.codecs;
+        track.codecPrivateData = realRepresentation.codecPrivateData;
+        track.bandwidth = realRepresentation.bandwidth;
+
+        if (track.type !== 'text') {
+            codec = realRepresentation.mimeType + ';codecs="' + realRepresentation.codecs + '"';
+            if (!this.capabilities.supportsCodec(this.videoModel.getElement(), codec)) {
+                throw {
+                    name: MediaPlayer.dependencies.ErrorHandler.prototype.MEDIA_ERR_CODEC_UNSUPPORTED,
+                    message: "Codec is not supported",
+                    data: {
+                        codec: codec
+                    }
+                };
+            }
+        }
+
+        // DRM Protected Adaptation is detected
+        if (realAdaptation.ContentProtection_asArray && (realAdaptation.ContentProtection_asArray.length > 0)) {
+            track.contentProtection = realAdaptation.ContentProtection_asArray;
+        }
+
+        // Video related informations
+        track.width = realRepresentation.width || realAdaptation.maxWidth;
+        track.height = realRepresentation.height || realAdaptation.maxHeight;
+
+        // Audio related informations
+        track.language = realAdaptation.lang ? realAdaptation.lang : 'und';
+
+        track.channels = getAudioChannels(realAdaptation, realRepresentation);
+        track.samplingRate = getAudioSamplingRate(realAdaptation, realRepresentation);
+
+        representation.initData = rslt.mp4Processor.generateInitSegment([track]);
+        
+        return representation.initData;
+    };
     
     //CCE: Modified!!
     //var rslt = MediaPlayer.utils.copyMethods(Dash.dependencies.DashHandler);
-    var rslt = {};
-    rslt.mp4Processor = undefined;
+    
+    function getStreamProcessor() {
+        return streamProcessor;
+    }
+    
     
     //CCE:Added!
-    rslt.initialize = function (StreamProcessor) {
+    function initialize (StreamProcessor) {
         //CCE: Comments!
         streamProcessor = StreamProcessor;
         // type = streamProcessor.getType();
         isDynamic = streamProcessor.isDynamic();
-        debugger;
         segmentsGetter = SegmentsGetter(context).create(config, isDynamic);
     }
     
@@ -151,6 +175,9 @@ function MssHandler(config) {
     //CCE:Added!
     function onSegmentListUpdated(representation, segments) {
 
+        // TODO Edu!!!
+        let metricsModel, dashMetrics;
+        
         representation.segments = segments;
 
         if (segments && segments.length > 0) {
@@ -173,7 +200,7 @@ function MssHandler(config) {
         return segmentsGetter.getSegments(representation, requestedTime, index, onSegmentListUpdated);
     }
     
-    rslt.updateRepresentation = function(representation, keepIdx) {
+    function updateRepresentation(representation, keepIdx) {
         var hasInitialization = representation.initialization;
         var hasSegments = representation.segmentInfoType !== 'BaseURL' && representation.segmentInfoType !== 'SegmentBase';
         var error;
@@ -197,12 +224,10 @@ function MssHandler(config) {
 
         if (!keepIdx) index = -1;
         
-        debugger;
         if (representation.segmentDuration) {
             updateSegmentList(representation);
         }
         
-        debugger;
         if (!hasInitialization) {
            segmentBaseLoader.loadInitialization(representation);
         }
@@ -218,13 +243,12 @@ function MssHandler(config) {
         eventBus.trigger(Events.REPRESENTATION_UPDATED, {sender: this, representation: representation});
     };
 
-    rslt.getInitRequest = function(representation) {
-        debugger;
+    function getInitRequest(representation) {
         var period = null,
             self = this,
             presentationStartTime = null,
             request = null,
-            deferred = Q.defer();
+            deferred = null;
 
         if (!representation) {
             throw new Error("MssHandler.getInitRequest(): representation is undefined");
@@ -265,16 +289,50 @@ function MssHandler(config) {
         return deferred.promise;
     };
 
-    rslt.getIFrameRequest = function(request){
-        debugger;
+     function getIFrameRequest(request){
+
         if (request && request.url && (request.streamType === "video" || request.streamType === "audio")) {
             request.url = request.url.replace('Fragments','KeyFrames');
         }
 
         return request;
     };
+    
+    
+    function generateSegmentRequestForTime() {}
+    
+    function getSegmentRequestForTime() {}
+    
+    function getNextSegmentRequest() {}
+    
+    function setCurrentTime() {}
+    
+    function getCurrentTime() {}
+    
+    function getCurrentIndex() {}
+    
+    function getEarliestTime() {}
+    
+    function reset() {}
 
-    return rslt;
+    instance = {
+        initialize: initialize,
+        getStreamProcessor: getStreamProcessor,
+        getInitRequest: getInitRequest,
+        getSegmentRequestForTime: getSegmentRequestForTime,
+        getNextSegmentRequest: getNextSegmentRequest,
+        generateSegmentRequestForTime: generateSegmentRequestForTime,
+        updateRepresentation: updateRepresentation,
+        setCurrentTime: setCurrentTime,
+        getCurrentTime: getCurrentTime,
+        getCurrentIndex: getCurrentIndex,
+        getEarliestTime: getEarliestTime,
+        reset: reset
+    };
+    
+    setup();
+    
+    return instance;
 };
 
 MssHandler.__dashjs_factory_name = 'MssHandler';

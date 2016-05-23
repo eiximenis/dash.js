@@ -13,13 +13,18 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+import ErrorHandler from '../streaming/utils/ErrorHandler';
 import FactoryMaker from '../core/FactoryMaker.js';
+import Debug from '../core/Debug';
 import DOMParser from '../streaming/utils/DOMParser.js';
 import MetricsModel from '../streaming/models/MetricsModel.js';
 import DashAdapter from '../dash/DashAdapter.js';
+import {BASE64} from './lib/base64.js';
 
 function MssParser() {
-    let instance
+    let context = this.context;
+    let log = Debug(context).getInstance().log;
+    let instance;
     
     var TIME_SCALE_100_NANOSECOND_UNIT = 10000000.0,
         samplingFrequencyIndex = {
@@ -126,7 +131,6 @@ function MssParser() {
             adaptationSet.SegmentTemplate = segmentTemplate;
 
             segments = segmentTemplate.SegmentTimeline.S_asArray;
-            debugger;
             this.metricsModel.addDVRInfo(adaptationSet.contentType, 0, null, {
                 start: segments[0].t / segmentTemplate.timescale,
                 end: (segments[segments.length - 1].t + segments[segments.length - 1].d)  / segmentTemplate.timescale
@@ -316,6 +320,7 @@ function MssParser() {
                 wrmHeader,
                 xmlReader,
                 KID;
+               
 
             // Get PlayReady header as byte array (base64 decoded)
             prHeader = BASE64.decodeArray(protectionHeader.firstChild.data);
@@ -534,16 +539,15 @@ function MssParser() {
             return mpd;
         },
 
-        internalParse = function(data, baseUrl) {
-            //this.debug.info("[MssParser]", "Doing parse.");
+        internalParse = function(data, {baseUri}) {
+            log("[MssParser] Doing parse.");
 
             var start = new Date(),
                 xml = null,
                 manifest = null,
                 mss2dash = null;
 
-            //this.debug.log("[MssParser]", "Converting from XML.");
-            debugger;
+            log("[MssParser] Converting from XML.");
             //CCE: WTF I'm doing!!!
             this.domParser = this.domParser().getInstance();
             this.metricsModel = this.metricsModel().getInstance();
@@ -552,10 +556,11 @@ function MssParser() {
             xml = new Date();
 
             if (xmlDoc === null) {
-                return Q.reject(null);
+                ErrorHandler(context).getInstance().manifestError('[MssParser] parsing the manifest failed', 'parse', data);
+                return null;
             }
 
-            baseURL = baseUrl;
+            baseURL = baseUri;
 
             // Convert MSS manifest into DASH manifest
             manifest = processManifest.call(this, start);
@@ -576,6 +581,7 @@ function MssParser() {
         errHandler: undefined,
         domParser: DOMParser,
         metricsModel: MetricsModel,
+        
 
         parse: internalParse
     }
@@ -585,4 +591,3 @@ function MssParser() {
 
 MssParser.__dashjs_factory_name = 'MssParser';
 export default FactoryMaker.getClassFactory(MssParser);
-

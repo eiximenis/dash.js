@@ -661,6 +661,16 @@
                     "browsers":""
                 }
             ]
-        }
+        },
+        {
+            "name":"MSS samples",
+            "submenu":[
+                {
+                    "name":"VOD Superspeedway",
+                    "url":"http://playready.directtaps.net/smoothstreaming/SSWSS720H264/SuperSpeedway_720.ism/Manifest",
+                    "browsers":"cdsbi"
+                }
+            ]
+        }        
     ]
 }
