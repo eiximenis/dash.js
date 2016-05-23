@@ -1,4 +1,4 @@
-/**
+c/**
  * The copyright in this software is being made available under the BSD License,
  * included below. This software may be subject to other third party and contributor
  * rights, including patent rights, and no such rights are granted under this license.
@@ -1790,7 +1790,8 @@ function MediaPlayer() {
 
     function createManifestParser() {
         //TODO-Refactor Need to be able to switch this create out so will need API to set which parser to use?
-        return DashParser(context).create();
+        return dashjs.MssParser().create();
+        //return DashParser(context).create();
     }
 
     function createAdaptor() {

@@ -93,7 +93,8 @@ function Stream(config) {
         playbackController = PlaybackController(context).getInstance();
         abrController = AbrController(context).getInstance();
         mediaController = MediaController(context).getInstance();
-        fragmentController = FragmentController(context).create();
+        fragmentController = dashjs.MssFragmentController().create();
+        //fragmentController = FragmentController(context).create();
         textSourceBuffer = TextSourceBuffer(context).getInstance();
 
         eventBus.on(Events.BUFFERING_COMPLETED, onBufferingCompleted, instance);
@@ -310,6 +311,12 @@ function Stream(config) {
             metricsModel: MetricsModel(context).getInstance(),
             baseURLController: baseURLController
         });
+        
+        handler = new dashjs.MssHandler().create({
+            timeLineConverter: timelineConverter, 
+            segmentBaseLoader: segmentBaseLoader
+        });
+
 
         return handler;
     }

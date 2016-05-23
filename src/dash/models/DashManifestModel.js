@@ -133,6 +133,9 @@ function DashManifestModel() {
         var lang = '';
 
         if (adaptation.hasOwnProperty('lang')) {
+            if (adaptation.lang === null)
+                adaptation.lang = '';
+            
             //Filter out any other characters not allowed according to RFC5646
             lang = adaptation.lang.replace(/[^A-Za-z0-9-]/g,'');
         }
