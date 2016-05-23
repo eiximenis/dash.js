@@ -134,6 +134,8 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
     $scope.audioRatioCount = 0;
     $scope.audioRatio = "";
 
+    $scope.selectedType = "dash";
+
     var converter = new MetricsTreeConverter();
     $scope.videoMetrics = null;
     $scope.audioMetrics = null;
@@ -515,6 +517,33 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
 
     }
 
+    function createPlayer() {
+        video = document.querySelector(".dash-video-player video");
+        player = dashjs.MediaPlayer().create({type: $scope.selectedType});
+
+        $scope.version = player.getVersion();
+
+        player.initialize();
+        player.on(dashjs.MediaPlayer.events.ERROR, onError.bind(this));
+        player.on(dashjs.MediaPlayer.events.METRIC_CHANGED, metricChanged.bind(this));
+        player.on(dashjs.MediaPlayer.events.METRIC_UPDATED, metricUpdated.bind(this));
+        player.on(dashjs.MediaPlayer.events.PERIOD_SWITCH_COMPLETED, streamSwitch.bind(this));
+        player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, streamInitialized.bind(this));
+        player.attachView(video);
+        player.attachVideoContainer(document.getElementById("videoContainer"));
+
+        // Add HTML-rendered TTML subtitles except for Firefox (issue #1164)
+        if (typeof navigator !== 'undefined' && !navigator.userAgent.match(/Firefox/)) {
+            ttmlDiv = document.querySelector("#video-caption");
+            player.attachTTMLRenderingDiv(ttmlDiv);
+        }
+
+        player.setAutoPlay(true);
+        controlbar = new ControlBar(player);
+        controlbar.initialize();
+        controlbar.disable() //controlbar.hide() // other option        
+    }
+
     ////////////////////////////////////////
     //
     // Debugging
@@ -559,31 +588,8 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
     // Player Setup
     //
     ////////////////////////////////////////
+    $scope.version = 'yet unknown';
 
-    video = document.querySelector(".dash-video-player video");
-    player = dashjs.MediaPlayer().create();
-
-    $scope.version = player.getVersion();
-
-    player.initialize();
-    player.on(dashjs.MediaPlayer.events.ERROR, onError.bind(this));
-    player.on(dashjs.MediaPlayer.events.METRIC_CHANGED, metricChanged.bind(this));
-    player.on(dashjs.MediaPlayer.events.METRIC_UPDATED, metricUpdated.bind(this));
-    player.on(dashjs.MediaPlayer.events.PERIOD_SWITCH_COMPLETED, streamSwitch.bind(this));
-    player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, streamInitialized.bind(this));
-    player.attachView(video);
-    player.attachVideoContainer(document.getElementById("videoContainer"));
-
-    // Add HTML-rendered TTML subtitles except for Firefox (issue #1164)
-    if (typeof navigator !== 'undefined' && !navigator.userAgent.match(/Firefox/)) {
-        ttmlDiv = document.querySelector("#video-caption");
-        player.attachTTMLRenderingDiv(ttmlDiv);
-    }
-
-    player.setAutoPlay(true);
-    controlbar = new ControlBar(player);
-    controlbar.initialize();
-    controlbar.disable() //controlbar.hide() // other option
 
     ////////////////////////////////////////
     //
@@ -667,7 +673,15 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
         $scope.selectedItem = item;
     }
 
+    $scope.setType = function(type) {
+        $scope.selectedType = type;
+    }
+
     $scope.doLoad = function () {
+
+        createPlayer();
+
+
         var protData = null;
         if ($scope.selectedItem.hasOwnProperty("protData")) {
             protData = $scope.selectedItem.protData;

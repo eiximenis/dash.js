@@ -16,10 +16,11 @@
 import FactoryMaker from '../core/FactoryMaker.js';
 import FragmentModel from '../streaming/models/FragmentModel';
 import MetricsModel from '../streaming/models/MetricsModel';
+import mp4lib from './mp4lib/mp4lib.js';
+
 
 function MssFragmentController() {
-    "use strict";
-    
+
     let fragmentModels;
     let context = this.context;
     
@@ -354,7 +355,7 @@ function MssFragmentController() {
         }
 
         return model;
-    }
+    };
     
     function findModel(scheduleController) {
         var ln = fragmentModels.length;
@@ -377,7 +378,7 @@ function MssFragmentController() {
         if (bytes !== null && bytes !== undefined && bytes.byteLength > 0) {
             result = new Uint8Array(bytes);
         } else {
-            return Q.when(null);
+            return null;
         }
 
         if (request && (request.type === "Media Segment") && manifest && representations && (representations.length > 0)) {
@@ -387,15 +388,15 @@ function MssFragmentController() {
             try{
                 result = convertFragment.call(this, result, request, adaptation);
             }catch(e) {
-                return Q.reject(e);
+                throw e;
             }
 
             if (!result) {
-                return Q.when(null);
+                return null;
             }
         }
 
-        return Q.when(result);
+        return result;
     };
 
     rslt.setSampleDuration = function(state) {
@@ -405,7 +406,7 @@ function MssFragmentController() {
     setup();
     
     return rslt;
-};
+}
 
 MssFragmentController.__dashjs_factory_name = 'MssFragmentController';
 export default FactoryMaker.getClassFactory(MssFragmentController);
