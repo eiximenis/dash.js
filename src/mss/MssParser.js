@@ -535,7 +535,9 @@ function MssParser() {
             // Delete Content Protection under root mpd node
             delete mpd.ContentProtection;
             delete mpd.ContentProtection_asArray;
-
+            
+            mpd.isSmoothStreaming = true;
+            
             return mpd;
         },
 

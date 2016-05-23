@@ -299,19 +299,33 @@ function MssHandler(config) {
     };
     
     
-    function generateSegmentRequestForTime() {}
+    function generateSegmentRequestForTime() {
+        log('[MSSHandler] generateSegmentRequestForTime - und');
+    }
     
-    function getSegmentRequestForTime() {}
+    function getSegmentRequestForTime() {
+        log('[MSSHandler] getSegmentRequestForTime - und');
+    }
     
-    function getNextSegmentRequest() {}
+    function getNextSegmentRequest() {
+        log('[MSSHandler] getNextSegmentRequest - und');
+    }
     
-    function setCurrentTime() {}
+    function setCurrentTime() {
+         log('[MSSHandler] setCurrentTime - und');
+    }
     
-    function getCurrentTime() {}
+    function getCurrentTime() {
+        log('[MSSHandler] getCurrentTime - und');
+    }
     
-    function getCurrentIndex() {}
+    function getCurrentIndex() {
+        log('[MSSHandler] getCurrentIndex - und');
+    }
     
-    function getEarliestTime() {}
+    function getEarliestTime() {
+        log('[MSSHandler] getEarliestTime - und');
+    }
     
     function reset() {}
 

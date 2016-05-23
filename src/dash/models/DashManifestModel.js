@@ -373,6 +373,9 @@ function DashManifestModel() {
             segmentInfo,
             r,
             s;
+           
+           
+        let isSmoothStreaming = manifest.isSmoothStreaming;
 
         for (var i = 0; i < a.Representation_asArray.length; i++) {
             r = a.Representation_asArray[i];
@@ -430,6 +433,10 @@ function DashManifestModel() {
                 }
             } else if (r.hasOwnProperty('mimeType') && getIsTextTrack(r.mimeType)) {
                 representation.range = 0;
+            }
+            
+            if (representation.initialization === null && isSmoothStreaming) {
+                representation.initialization = "MSS";
             }
 
             if (segmentInfo.hasOwnProperty('timescale')) {
