@@ -19,6 +19,9 @@ import EventBus from '../core/EventBus';
 import SegmentsGetter from '../dash/utils/SegmentsGetter';
 import FragmentRequest from '../streaming/vo/FragmentRequest.js';
 import Debug from '../core/Debug';
+import {HTTPRequest} from '../streaming/vo/metrics/HTTPRequest';
+import {replaceTokenForTemplate, getTimeBasedSegment, getSegmentByIndex} from '../dash/utils/SegmentsUtils';
+import URLUtils from '../streaming/utils/URLUtils';
 
 const SEGMENTS_UNAVAILABLE_ERROR_CODE = 1;
 
@@ -33,10 +36,12 @@ function MssHandler(config) {
     
     let context = this.context;
     let log = Debug(context).getInstance().log;
-    let streamProcessor, requestedTime, segmentsGetter, isDynamic, index
+    const urlUtils = URLUtils(context).getInstance();
+    let streamProcessor, requestedTime, segmentsGetter, isDynamic, index;
     let eventBus = EventBus(context).getInstance();
     let segmentBaseLoader = config.segmentBaseLoader;
     let timelineConverter = config.timelineConverter;
+    const baseURLController = config.baseURLController;
     
     function setup() {
         index = -1;
@@ -149,11 +154,9 @@ function MssHandler(config) {
     }
     
     
-    //CCE:Added!
     function initialize (StreamProcessor) {
-        //CCE: Comments!
         streamProcessor = StreamProcessor;
-        // type = streamProcessor.getType();
+        type = streamProcessor.getType();
         isDynamic = streamProcessor.isDynamic();
         segmentsGetter = SegmentsGetter(context).create(config, isDynamic);
     }
@@ -242,8 +245,9 @@ function MssHandler(config) {
         }
         eventBus.trigger(Events.REPRESENTATION_UPDATED, {sender: this, representation: representation});
     };
+    
 
-    function getInitRequest(representation) {
+    function generateInitRequest(representation, mediaType) {
         var period = null,
             self = this,
             presentationStartTime = null,
@@ -256,16 +260,22 @@ function MssHandler(config) {
 
         period = representation.adaptation.period;
         presentationStartTime = period.start;
-        
-        //CCE: Modified!
         request = new FragmentRequest();
-        //request = new MediaPlayer.vo.SegmentRequest();
-        
-        //CCE: Modified!
-        //request.streamType = rslt.getType();
         request.streamType = representation.adaptation.type;
-        request.type = "Initialization Segment";
+        
+        request.type = HTTPRequest.INIT_SEGMENT_TYPE;
+        // In MSS there are not really request to init segment. We need to build it by ourselves
         request.url = null;
+        request.action =  FragmentRequest.ACTION_COMPLETE;          
+        request.mediaType = mediaType;
+        request.range = representation.range;
+        presentationStartTime = period.start;
+        request.availabilityStartTime = timelineConverter.calcAvailabilityStartTimeFromPresentationTime(presentationStartTime, representation.adaptation.period.mpd, isDynamic);
+        request.availabilityEndTime = timelineConverter.calcAvailabilityEndTimeFromPresentationTime(presentationStartTime + period.duration, period.mpd, isDynamic);
+        request.quality = representation.index;
+        request.mediaInfo = streamProcessor.getMediaInfo();
+
+        
         
         //CCE: Comment!
         // try {
@@ -275,19 +285,50 @@ function MssHandler(config) {
         //     return deferred.promise;
         // }
 
-        request.range = representation.range;
-        
-        
-        //CCE: Comment! WTF
-        // request.availabilityStartTime = self.timelineConverter.calcAvailabilityStartTimeFromPresentationTime(presentationStartTime, representation.adaptation.period.mpd, rslt.getIsDynamic());
-        // request.availabilityEndTime = self.timelineConverter.calcAvailabilityEndTimeFromPresentationTime(presentationStartTime + period.duration, period.mpd, rslt.getIsDynamic());
-
-        //request.action = "complete"; //needed to avoid to execute request
-        request.quality = representation.index;
-        deferred.resolve(request);
-
-        return deferred.promise;
+        return request;
     };
+    
+    
+    function getInitRequest(representation) {
+        var request;
+
+        if (!representation) return null;
+        
+        log("[MSSHandler] generating init request for representatio type: " + type);
+        request = generateInitRequest(representation, type);
+
+        //log("Got an initialization.");
+
+        return request;
+    }    
+
+    function isMediaFinished(representation) {
+        var period = representation.adaptation.period;
+        var segmentInfoType = representation.segmentInfoType;
+
+        var isFinished = false;
+
+        var sDuration,
+            seg,
+            fTime;
+
+        if (index < 0) {
+            isFinished = false;
+        } else if (isDynamic || index < representation.availableSegmentsNumber) {
+            seg = getSegmentByIndex(index, representation);
+
+            if (seg) {
+                fTime = seg.presentationStartTime - period.start;
+                sDuration = representation.adaptation.period.duration;
+                log(representation.segmentInfoType + ': ' + fTime + ' / ' + sDuration);
+                isFinished = segmentInfoType === 'SegmentTimeline' && isDynamic ? false : (fTime >= sDuration);
+            }
+        } else {
+            isFinished = true;
+        }
+
+        return isFinished;
+    }    
 
      function getIFrameRequest(request){
 
@@ -299,24 +340,165 @@ function MssHandler(config) {
     };
     
     
+    function unescapeDollarsInTemplate(url) {
+        return url.split('$$').join('$');
+    }
+    
+
+    function setRequestUrl(request, destination, representation) {
+        var baseURL = baseURLController.resolve(representation.path);
+        var url;
+        var serviceLocation;
+
+        if (!baseURL || (destination === baseURL.url) || (!urlUtils.isRelative(destination))) {
+            url = destination;
+        } else {
+            url = baseURL.url;
+            serviceLocation = baseURL.serviceLocation;
+
+            if (destination) {
+                url += destination;
+            }
+        }
+
+        if (urlUtils.isRelative(url)) {
+            return false;
+        }
+
+        request.url = url;
+        request.serviceLocation = serviceLocation;
+
+        return true;
+    }    
+    
+    function getIndexForSegments(time, representation, timeThreshold) {
+        var segments = representation.segments;
+        var ln = segments ? segments.length : null;
+
+        var idx = -1;
+        var epsilon,
+            frag,
+            ft,
+            fd,
+            i;
+
+        if (segments && ln > 0) {
+            for (i = 0; i < ln; i++) {
+                frag = segments[i];
+                ft = frag.presentationStartTime;
+                fd = frag.duration;
+                epsilon = (timeThreshold === undefined || timeThreshold === null) ? fd / 2 : timeThreshold;
+                if ((time + epsilon) >= ft &&
+                    (time - epsilon) < (ft + fd)) {
+                    idx = frag.availabilityIdx;
+                    break;
+                }
+            }
+        }
+
+        return idx;
+    }    
+    
+    function getRequestForSegment(segment) {
+        if (segment === null || segment === undefined) {
+            return null;
+        }
+
+        var request = new FragmentRequest();
+        var representation = segment.representation;
+        var bandwidth = representation.adaptation.period.mpd.manifest.Period_asArray[representation.adaptation.period.index].
+            AdaptationSet_asArray[representation.adaptation.index].Representation_asArray[representation.index].bandwidth;
+        var url = segment.media;
+        url = replaceTokenForTemplate(url, 'Bandwidth', bandwidth);
+        url = unescapeDollarsInTemplate(url);
+
+        request.mediaType = type;
+        request.type = HTTPRequest.MEDIA_SEGMENT_TYPE;
+        request.range = segment.mediaRange;
+        request.startTime = segment.presentationStartTime;
+        request.duration = segment.duration;
+        request.timescale = representation.timescale;
+        request.availabilityStartTime = segment.availabilityStartTime;
+        request.availabilityEndTime = segment.availabilityEndTime;
+        request.wallStartTime = segment.wallStartTime;
+        request.quality = representation.index;
+        request.index = segment.availabilityIdx;
+        request.mediaInfo = streamProcessor.getMediaInfo();
+        request.adaptationIndex = representation.adaptation.index;
+
+        if (setRequestUrl(request, url, representation)) {
+            return request;
+        }
+    }
+    
+    
     function generateSegmentRequestForTime() {
         log('[MSSHandler] generateSegmentRequestForTime - und');
     }
     
-    function getSegmentRequestForTime() {
-        log('[MSSHandler] getSegmentRequestForTime - und');
+    function getSegmentRequestForTime(representation, time, options) {
+        var request,
+            segment,
+            finished;
+
+        var idx = index;
+
+        var keepIdx = options ? options.keepIdx : false;
+        var timeThreshold = options ? options.timeThreshold : null;
+        var ignoreIsFinished = (options && options.ignoreIsFinished) ? true : false;
+
+        if (!representation) {
+            return null;
+        }
+
+        if (requestedTime !== time) { // When playing at live edge with 0 delay we may loop back with same time and index until it is available. Reduces verboseness of logs.
+            requestedTime = time;
+            log('Getting the request for ' + type + ' time : ' + time);
+        }
+
+        index = getIndexForSegments(time, representation, timeThreshold);
+        //Index may be -1 if getSegments needs to update.  So after getSegments is called and updated then try to get index again.
+        updateSegments(representation);
+        if (index < 0) {
+            index = getIndexForSegments(time, representation, timeThreshold);
+        }
+
+        if (index > 0) {
+            log('Index for ' + type + ' time ' + time + ' is ' + index );
+        }
+
+        finished = !ignoreIsFinished ? isMediaFinished(representation) : false;
+        if (finished) {
+            request = new FragmentRequest();
+            request.action = FragmentRequest.ACTION_COMPLETE;
+            request.index = index;
+            request.mediaType = type;
+            request.mediaInfo = streamProcessor.getMediaInfo();
+            log('Signal complete.', request);
+
+        } else {
+            segment = getSegmentByIndex(index, representation);
+            request = getRequestForSegment(segment);
+        }
+
+        if (keepIdx && idx >= 0) {
+            index = representation.segmentInfoType === 'SegmentTimeline' && isDynamic ? index : idx;
+        }
+
+        return request;
     }
+
     
     function getNextSegmentRequest() {
         log('[MSSHandler] getNextSegmentRequest - und');
     }
     
-    function setCurrentTime() {
-         log('[MSSHandler] setCurrentTime - und');
+    function setCurrentTime(value) {
+         currentTime = value;
     }
     
     function getCurrentTime() {
-        log('[MSSHandler] getCurrentTime - und');
+        return currentTime;
     }
     
     function getCurrentIndex() {

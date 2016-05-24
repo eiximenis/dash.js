@@ -325,8 +325,11 @@ function Stream(config) {
         }
         else if (context.type === "mss") {
             handler = MssHandler(context).create({
-                timelineConverter: timelineConverter, 
-                segmentBaseLoader: segmentBaseLoader
+                segmentBaseLoader: segmentBaseLoader,
+                timelineConverter: timelineConverter,
+                dashMetrics: DashMetrics(context).getInstance(),
+                metricsModel: MetricsModel(context).getInstance(),
+                baseURLController: baseURLController
             });
         }
         else {
