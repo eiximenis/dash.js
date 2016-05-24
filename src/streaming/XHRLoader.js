@@ -69,6 +69,23 @@ function XHRLoader(cfg) {
             [HTTPRequest.OTHER_TYPE]:                       ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT
         };
     }
+    
+    function createMockedXhr(request) {
+        return {
+            status: 200,
+            response: request.mssData,
+            statusText: 'MSS INIT OK'
+        }
+    }
+    
+    function createMockProgressEvent(request) {
+        return  {
+            lengthComputable: true,
+            total: request.mssData.byteLength,
+            loaded: request.mssData.byteLength,
+            
+        }
+    }
 
     function internalLoad(config, remainingAttempts) {
 
@@ -109,10 +126,10 @@ function XHRLoader(cfg) {
         };
 
         const onloadend = function () {
-            if (xhrs.indexOf(xhr) === -1) {
+            if (xhrs.indexOf(this) === -1) {
                 return;
             } else {
-                xhrs.splice(xhrs.indexOf(xhr), 1);
+                xhrs.splice(xhrs.indexOf(this), 1);
             }
 
             if (needFailureReport) {
@@ -133,11 +150,11 @@ function XHRLoader(cfg) {
                     );
 
                     if (config.error) {
-                        config.error(request, 'error', xhr.statusText);
+                        config.error(request, 'error', this.statusText);
                     }
 
                     if (config.complete) {
-                        config.complete(request, xhr.statusText);
+                        config.complete(request, this.statusText);
                     }
                 }
             }
@@ -174,15 +191,15 @@ function XHRLoader(cfg) {
         };
 
         const onload = function () {
-            if (xhr.status >= 200 && xhr.status <= 299) {
+            if (this.status >= 200 && this.status <= 299) {
                 handleLoaded(true);
 
                 if (config.success) {
-                    config.success(xhr.response, xhr.statusText, xhr);
+                    config.success(this.response, this.statusText, this);
                 }
 
                 if (config.complete) {
-                    config.complete(request, xhr.statusText);
+                    config.complete(request, this.statusText);
                 }
             }
         };
@@ -190,56 +207,65 @@ function XHRLoader(cfg) {
         try {
             const modifiedUrl = requestModifier.modifyRequestURL(request.url);
             const verb = request.checkExistenceOnly ? 'HEAD' : 'GET';
-
-            xhr.open(verb, modifiedUrl, true);
-
-            if (request.responseType) {
-                xhr.responseType = request.responseType;
+            
+            
+            if (request.mssData) {
+                
+                let mockedXhr = createMockedXhr(request);
+                progress(createMockProgressEvent(request));
+                onload.call(mockedXhr);
+                onloadend.call(mockedXhr);
             }
+            else {
+                xhr.open(verb, modifiedUrl, true);
 
-            if (request.range) {
-                xhr.setRequestHeader('Range', 'bytes=' + request.range);
+                if (request.responseType) {
+                    xhr.responseType = request.responseType;
+                }
+
+                if (request.range) {
+                    xhr.setRequestHeader('Range', 'bytes=' + request.range);
+                }
+
+                if (!request.requestStartDate) {
+                    request.requestStartDate = requestStartTime;
+                }
+
+                xhr = requestModifier.modifyRequestHeader(xhr);
+
+                xhr.withCredentials = mediaPlayerModel.getXHRWithCredentials();
+
+                xhr.onload = onload.bind(xhr);
+                xhr.onloadend = onloadend.bind(xhr);
+                xhr.onerror = onloadend.bind(xhr);
+                xhr.onprogress = progress;
+
+                // Adds the ability to delay single fragment loading time to control buffer.
+                let now = new Date().getTime();
+                if (isNaN(request.delayLoadingTime) || now >= request.delayLoadingTime) {
+                    // no delay - just send xhr
+
+                    xhrs.push(xhr);
+                    xhr.send();
+                } else {
+                    // delay
+                    let delayedXhr = {xhr: xhr};
+                    delayedXhrs.push(delayedXhr);
+                    delayedXhr.delayTimeout = setTimeout(function () {
+                        if (delayedXhrs.indexOf(delayedXhr) === -1) {
+                            return;
+                        } else {
+                            delayedXhrs.splice(delayedXhrs.indexOf(delayedXhr), 1);
+                        }
+                        try {
+                            xhrs.push(delayedXhr.xhr);
+                            delayedXhr.xhr.send();
+                        } catch (e) {
+                            delayedXhr.xhr.onerror();
+                        }
+                    }, (request.delayLoadingTime - now));
+                }                
             }
-
-            if (!request.requestStartDate) {
-                request.requestStartDate = requestStartTime;
-            }
-
-            xhr = requestModifier.modifyRequestHeader(xhr);
-
-            xhr.withCredentials = mediaPlayerModel.getXHRWithCredentials();
-
-            xhr.onload = onload;
-            xhr.onloadend = onloadend;
-            xhr.onerror = onloadend;
-            xhr.onprogress = progress;
-
-            // Adds the ability to delay single fragment loading time to control buffer.
-            let now = new Date().getTime();
-            if (isNaN(request.delayLoadingTime) || now >= request.delayLoadingTime) {
-                // no delay - just send xhr
-
-                xhrs.push(xhr);
-                xhr.send();
-            } else {
-                // delay
-                let delayedXhr = {xhr: xhr};
-                delayedXhrs.push(delayedXhr);
-                delayedXhr.delayTimeout = setTimeout(function () {
-                    if (delayedXhrs.indexOf(delayedXhr) === -1) {
-                        return;
-                    } else {
-                        delayedXhrs.splice(delayedXhrs.indexOf(delayedXhr), 1);
-                    }
-                    try {
-                        xhrs.push(delayedXhr.xhr);
-                        delayedXhr.xhr.send();
-                    } catch (e) {
-                        delayedXhr.xhr.onerror();
-                    }
-                }, (request.delayLoadingTime - now));
-            }
-
         } catch (e) {
             xhr.onerror();
         }

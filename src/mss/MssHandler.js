@@ -22,12 +22,15 @@ import Debug from '../core/Debug';
 import {HTTPRequest} from '../streaming/vo/metrics/HTTPRequest';
 import {replaceTokenForTemplate, getTimeBasedSegment, getSegmentByIndex} from '../dash/utils/SegmentsUtils';
 import URLUtils from '../streaming/utils/URLUtils';
+import Mp4Processor from './Mp4Processor';
+import Mp4Track from './vo/Mp4Track';
+import VideoModel from '../streaming/models/VideoModel';
+import Capabilities from '../streaming/utils/Capabilities';
 
 const SEGMENTS_UNAVAILABLE_ERROR_CODE = 1;
 
 function MssHandler(config) {
     
-    let rslt={};            // TODO!!! Edu
     
     let instance,
         type,
@@ -42,6 +45,8 @@ function MssHandler(config) {
     let segmentBaseLoader = config.segmentBaseLoader;
     let timelineConverter = config.timelineConverter;
     const baseURLController = config.baseURLController;
+    let mp4Processor = Mp4Processor(context).create();
+    let capabilities = Capabilities(context).getInstance();
     
     function setup() {
         index = -1;
@@ -88,7 +93,7 @@ function MssHandler(config) {
     // Generates initialization segment data from representation information
     // by using mp4lib library
     var getInitData = function(representation) {
-        var manifest = rslt.manifestModel.getValue(),
+        var manifest = representation.adaptation.period.mpd.manifest,
             adaptation,
             realAdaptation,
             realRepresentation,
@@ -104,8 +109,8 @@ function MssHandler(config) {
         realAdaptation = manifest.Period_asArray[adaptation.period.index].AdaptationSet_asArray[adaptation.index];
         realRepresentation = realAdaptation.Representation_asArray[representation.index];
 
-        track = new MediaPlayer.vo.Mp4Track();
-        track.type = rslt.getType() || 'und';
+        track = new Mp4Track();
+        track.type = adaptation.type || 'und';
         track.trackId = adaptation.index + 1; // +1 since track_id shall start from '1'
         track.timescale = representation.timescale;
         track.duration = representation.adaptation.period.duration;
@@ -115,9 +120,9 @@ function MssHandler(config) {
 
         if (track.type !== 'text') {
             codec = realRepresentation.mimeType + ';codecs="' + realRepresentation.codecs + '"';
-            if (!this.capabilities.supportsCodec(this.videoModel.getElement(), codec)) {
+            if (!capabilities.supportsCodec(VideoModel(context).getInstance().getElement(), codec)) {
                 throw {
-                    name: MediaPlayer.dependencies.ErrorHandler.prototype.MEDIA_ERR_CODEC_UNSUPPORTED,
+                    name: "MEDIA_ERR_CODEC_UNSUPPORTED",
                     message: "Codec is not supported",
                     data: {
                         codec: codec
@@ -141,7 +146,7 @@ function MssHandler(config) {
         track.channels = getAudioChannels(realAdaptation, realRepresentation);
         track.samplingRate = getAudioSamplingRate(realAdaptation, realRepresentation);
 
-        representation.initData = rslt.mp4Processor.generateInitSegment([track]);
+        representation.initData = mp4Processor.generateInitSegment([track]);
         
         return representation.initData;
     };
@@ -265,8 +270,7 @@ function MssHandler(config) {
         
         request.type = HTTPRequest.INIT_SEGMENT_TYPE;
         // In MSS there are not really request to init segment. We need to build it by ourselves
-        request.url = null;
-        request.action =  FragmentRequest.ACTION_COMPLETE;          
+        request.url = null;        
         request.mediaType = mediaType;
         request.range = representation.range;
         presentationStartTime = period.start;
@@ -274,17 +278,7 @@ function MssHandler(config) {
         request.availabilityEndTime = timelineConverter.calcAvailabilityEndTimeFromPresentationTime(presentationStartTime + period.duration, period.mpd, isDynamic);
         request.quality = representation.index;
         request.mediaInfo = streamProcessor.getMediaInfo();
-
-        
-        
-        //CCE: Comment!
-        // try {
-        //     request.data = getInitData.call(this, representation);
-        // } catch (e) {
-        //     deferred.reject(e);
-        //     return deferred.promise;
-        // }
-
+        request.mssData = getInitData(representation);
         return request;
     };
     
