@@ -14,23 +14,36 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 import FactoryMaker from '../core/FactoryMaker.js';
+import Debug from '../core/Debug';
+import EventBus from '../core/EventBus';
+import Events from '../core/events/Events';
 import FragmentModel from '../streaming/models/FragmentModel';
+import ManifestModel from '../streaming/models/ManifestModel';
+import DashManifestModel from '../dash/models/DashManifestModel';
 import MetricsModel from '../streaming/models/MetricsModel';
 import mp4lib from './mp4lib/mp4lib.js';
+import DataChunk from '../streaming/vo/DataChunk';
+import {HTTPRequest} from '../streaming/vo/metrics/HTTPRequest';
 
 
 function MssFragmentController() {
 
     let fragmentModels;
     let context = this.context;
+    let log = Debug(context).getInstance().log;
+    let eventBus = EventBus(context).getInstance();
+    let manifestModel = ManifestModel(context).getInstance();
+    let dashManifestModel = DashManifestModel(context).getInstance();
+    let metricsModel = MetricsModel(context).getInstance();
+    let fixDuration  = false;
     
     function setup() {
         fragmentModels = [];
-        //eventBus.on(Events.FRAGMENT_LOADING_COMPLETED, onFragmentLoadingCompleted, instance);
+        eventBus.on(Events.FRAGMENT_LOADING_COMPLETED, onFragmentLoadingCompleted, instance);
     }
 
     var processTfrf = function(tfrf, tfdt, adaptation) {
-            var manifest = this.manifestModel.getValue(),
+            var manifest = manifestModel.getValue(),
                 segmentsUpdated = false,
                 // Get adaptation's segment timeline (always a SegmentTimeline in Smooth Streaming use case)
                 segments = adaptation.SegmentTemplate.SegmentTimeline.S,
@@ -54,7 +67,7 @@ function MssFragmentController() {
                 t = segment.t;
 
                 if (fragment_absolute_time > t) {
-                    this.debug.log("[MssFragmentController] Add new segment - t = " + (fragment_absolute_time / 10000000.0));
+                    log("[MssFragmentController] Add new segment - t = " + (fragment_absolute_time / 10000000.0));
                     segments.push({
                         t: fragment_absolute_time,
                         d: fragment_duration
@@ -79,7 +92,7 @@ function MssFragmentController() {
                         if ((t + segments[segmentId + i].d) != entries[i].fragment_absolute_time) {
                             segments[segmentId + i].t = entries[i].fragment_absolute_time;
                             segments[segmentId + i].d = entries[i].fragment_duration;
-                            this.debug.log("[MssFragmentController] Correct tfrf time  = " + entries[i].fragment_absolute_time + "and duration = " + entries[i].fragment_duration + "! ********");
+                            log("[MssFragmentController] Correct tfrf time  = " + entries[i].fragment_absolute_time + "and duration = " + entries[i].fragment_duration + "! ********");
                             segmentsUpdated = true;
                         }
                     }
@@ -100,12 +113,11 @@ function MssFragmentController() {
                 // Remove segments prior to availability start time
                 segment = segments[0];
                 while (segment.t < availabilityStartTime) {
-                    this.debug.log("[MssFragmentController] Remove segment  - t = " + (segment.t / 10000000.0));
+                    log("[MssFragmentController] Remove segment  - t = " + (segment.t / 10000000.0));
                     segments.splice(0, 1);
                     segment = segments[0];
                 }
-
-                this.metricsModel.addDVRInfo(adaptation.type, 0, null, {
+                metricsModel.addDVRInfo(adaptation.type, 0, null, {
                     start: segments[0].t / adaptation.SegmentTemplate.timescale,
                     end: (segments[segments.length - 1].t + segments[segments.length - 1].d) / adaptation.SegmentTemplate.timescale
                 });
@@ -113,10 +125,12 @@ function MssFragmentController() {
         },
 
         convertFragment = function(data, request, adaptation) {
+            log('[MssFragmentController] converting fragment.');
+            let periodIndex = 0;
             var i = 0,
                 // Get track id corresponding to adaptation set
-                manifest = this.manifestModel.getValue(),
-                trackId = manifest ? this.manifestExt.getIndex(adaptation, manifest) + 1 : -1, // +1 since track_id shall start from '1'
+                manifest = manifestModel.getValue(),
+                trackId = manifest ? dashManifestModel.getIndexForAdaptation(adaptation, manifest, periodIndex) + 1 : -1, // +1 since track_id shall start from '1'
                 // Create new fragment
                 fragment = mp4lib.deserialize(data),
                 moof = null,
@@ -225,7 +239,7 @@ function MssFragmentController() {
             tfrf = traf.getBoxesByType("tfrf");
             if (tfrf.length !== 0) {
                 for (i = 0; i < tfrf.length; i += 1) {
-                    processTfrf.call(this, tfrf[i], tfdt, adaptation);
+                    processTfrf(tfrf[i], tfdt, adaptation);
                     traf.removeBoxByType("tfrf");
                 }
             }
@@ -237,7 +251,7 @@ function MssFragmentController() {
             trun.data_offset = 0; // Set a default value for trun.data_offset
 
             //in trickMode, we have to modify sample duration for audio and video
-            if (this.fixDuration && trun.samples_table.length === 1) {
+            if (fixDuration && trun.samples_table.length === 1) {
                 var fullDuration = request.duration * request.timescale,
                     concatDuration = 0,
                     mdatData = mdat.data,
@@ -333,29 +347,27 @@ function MssFragmentController() {
             return new_data;
         };
     
-    //CCE:Modified!
-    //var rslt = MediaPlayer.utils.copyMethods(MediaPlayer.dependencies.FragmentController);
-    var rslt = {};
-    
-    rslt.manifestModel = undefined;
-    rslt.manifestExt = undefined;
-    rslt.metricsModel = undefined;
-    rslt.fixDuration = false;
-    
-    //CCE: Added!
-    rslt.getModel = function (scheduleController) {
+    function getModel(scheduleController) {
         if (!scheduleController) return null;
         // Wrap the buffer controller into model and store it to track the loading state and execute the requests
         var model = findModel(scheduleController);
 
         if (!model) {
-            model = FragmentModel(context).create({metricsModel: MetricsModel(context).getInstance()});
+            model = FragmentModel(context).create({metricsModel: metricsModel});
             model.setScheduleController(scheduleController);
             fragmentModels.push(model);
         }
 
         return model;
     };
+    
+    function detachModel(model) {
+        var idx = fragmentModels.indexOf(model);
+        // If we have the model for the given buffer just remove it from array
+        if (idx > -1) {
+            fragmentModels.splice(idx, 1);
+        }
+    }
     
     function findModel(scheduleController) {
         var ln = fragmentModels.length;
@@ -369,25 +381,80 @@ function MssFragmentController() {
 
         return null;
     }
+    
+    function createDataChunk(bytes, request, streamId) {
+        var chunk = new DataChunk();
 
-    rslt.process = function(bytes, request, representations) {
+        chunk.streamId = streamId;
+        chunk.mediaInfo = request.mediaInfo;
+        chunk.segmentType = request.type;
+        chunk.start = request.startTime;
+        chunk.duration = request.duration;
+        chunk.end = chunk.start + chunk.duration;
+        chunk.bytes = bytes;
+        chunk.index = request.index;
+        chunk.quality = request.quality;
+
+        return chunk;
+    }
+
+
+    function onFragmentLoadingCompleted(e) {
+        let scheduleController = e.sender.getScheduleController();
+        if (!findModel(scheduleController)) return;
+
+        let request = e.request;
+        let bytes = e.response;
+        let isInit = isInitializationRequest(request);
+        let streamId = scheduleController.getStreamProcessor().getStreamInfo().id;
+        let chunk;
+
+        if (!bytes) {
+            log('No ' + request.mediaType + ' bytes to push.');
+            return;
+        }
+
+        chunk = createDataChunk(bytes, request, streamId);
+        if (!isInit) {
+            processNonInitChunks(bytes, request);
+        }
+        eventBus.trigger(isInit ? Events.INIT_FRAGMENT_LOADED : Events.MEDIA_FRAGMENT_LOADED, {chunk: chunk, fragmentModel: e.sender});
+    }
+    
+    function isInitializationRequest(request) {
+        return (request && request.type && request.type === HTTPRequest.INIT_SEGMENT_TYPE);
+    }
+    
+    function reset() {
+        eventBus.off(Events.FRAGMENT_LOADING_COMPLETED, onFragmentLoadingCompleted, this);
+        fragmentModels = [];
+    }
+    
+    function processNonInitChunks(bytes, request) {
+        
+        log("[MssFragmentController] processNonInitChunks for adaptation " + request.adaptationIndex);
+        
         var result = null,
-            manifest = this.manifestModel.getValue(),
+            manifest = manifestModel.getValue(),
             adaptation = null;
+            
+        let periodIndex = 0;
 
+        adaptation = dashManifestModel.getAdaptationForIndex(request.adaptationIndex, manifest, periodIndex);
         if (bytes !== null && bytes !== undefined && bytes.byteLength > 0) {
             result = new Uint8Array(bytes);
         } else {
             return null;
         }
 
-        if (request && (request.type === "Media Segment") && manifest && representations && (representations.length > 0)) {
+        if (request && (request.type === HTTPRequest.MEDIA_SEGMENT_TYPE) && manifest) {
             // Get adaptation containing provided representations
             // (Note: here representations is of type Dash.vo.Representation)
-            adaptation = manifest.Period_asArray[representations[0].adaptation.period.index].AdaptationSet_asArray[representations[0].adaptation.index];
+            //adaptation = manifest.Period_asArray[representations[0].adaptation.period.index].AdaptationSet_asArray[representations[0].adaptation.index];
             try{
-                result = convertFragment.call(this, result, request, adaptation);
+                result = convertFragment(result, request, adaptation);
             }catch(e) {
+                log('[MssFragmentController] Error in processNonInitChunks');
                 throw e;
             }
 
@@ -399,13 +466,22 @@ function MssFragmentController() {
         return result;
     };
 
-    rslt.setSampleDuration = function(state) {
-        this.fixDuration = state;
+    function setSampleDuration(state) {
+        fixDuration = state;
     };
+    
+    let instance = {
+        process: process,
+        getModel: getModel,
+        detachModel: detachModel,
+        isInitializationRequest: isInitializationRequest,
+        reset: reset
+    };
+    
     
     setup();
     
-    return rslt;
+    return instance;
 }
 
 MssFragmentController.__dashjs_factory_name = 'MssFragmentController';

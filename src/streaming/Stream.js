@@ -97,7 +97,7 @@ function Stream(config) {
         mediaController = MediaController(context).getInstance();
         
         if (context.type==="mss") {
-            fragmentController = MssFragmentController(context).create();    
+            fragmentController = MssFragmentController(context).create();
         }
         else {
           fragmentController = FragmentController(context).create();  
@@ -304,39 +304,35 @@ function Stream(config) {
     }
 
     function createIndexHandler() {
-
         let segmentBaseLoader = SegmentBaseLoader(context).getInstance();
         segmentBaseLoader.setConfig({
             baseURLController: baseURLController
         });
         segmentBaseLoader.initialize();
-        
-        let handler;
-        
-        if (context.type === "dash") {
-
+        let handler = null;
+        if (context.type==="dash") {
             handler = DashHandler(context).create({
-                segmentBaseLoader: segmentBaseLoader,
-                timelineConverter: timelineConverter,
-                dashMetrics: DashMetrics(context).getInstance(),
-                metricsModel: MetricsModel(context).getInstance(),
-                baseURLController: baseURLController
-            });
+                    segmentBaseLoader: segmentBaseLoader,
+                    timelineConverter: timelineConverter,
+                    dashMetrics: DashMetrics(context).getInstance(),
+                    metricsModel: MetricsModel(context).getInstance(),
+                    baseURLController: baseURLController
+                });    
         }
         else if (context.type === "mss") {
+            log('Using [MssHandler] instead of [DashHandler]');
             handler = MssHandler(context).create({
                 segmentBaseLoader: segmentBaseLoader,
                 timelineConverter: timelineConverter,
                 dashMetrics: DashMetrics(context).getInstance(),
                 metricsModel: MetricsModel(context).getInstance(),
-                baseURLController: baseURLController
+                baseURLController: baseURLController,
+                parent: handler 
             });
         }
         else {
-            handler = null;
-            log('Invalid media type: ' + context.type + ". No handler can't be created.");
+            log ("Invalid context.type " + context.type + ". Handler can't be created");
         }
-
         return handler;
     }
 

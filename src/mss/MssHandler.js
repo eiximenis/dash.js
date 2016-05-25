@@ -48,6 +48,12 @@ function MssHandler(config) {
     let mp4Processor = Mp4Processor(context).create();
     let capabilities = Capabilities(context).getInstance();
     
+    let dashMetrics = config.dashMetrics;
+    let metricsModel = config.metricsModel;
+    
+    let root = config.parent;
+    console.log(root);
+    
     function setup() {
         index = -1;
         currentTime = 0;
@@ -181,11 +187,7 @@ function MssHandler(config) {
     }
     
     //CCE:Added!
-    function onSegmentListUpdated(representation, segments) {
-
-        // TODO Edu!!!
-        let metricsModel, dashMetrics;
-        
+    function onSegmentListUpdated(representation, segments) {        
         representation.segments = segments;
 
         if (segments && segments.length > 0) {
@@ -260,7 +262,7 @@ function MssHandler(config) {
             deferred = null;
 
         if (!representation) {
-            throw new Error("MssHandler.getInitRequest(): representation is undefined");
+            throw new Error("[MssHandler] getInitRequest(): representation is undefined");
         }
 
         period = representation.adaptation.period;
@@ -288,11 +290,8 @@ function MssHandler(config) {
 
         if (!representation) return null;
         
-        log("[MSSHandler] generating init request for representatio type: " + type);
+        log("[MssHandler] generating init request for representatio type: " + type);
         request = generateInitRequest(representation, type);
-
-        //log("Got an initialization.");
-
         return request;
     }    
 
@@ -483,10 +482,45 @@ function MssHandler(config) {
     }
 
     
-    function getNextSegmentRequest() {
-        log('[MSSHandler] getNextSegmentRequest - und');
+    function getNextSegmentRequest(representation) {
+        var request,
+            segment,
+            finished;
+
+        if (!representation || index === -1) {
+            return null;
+        }
+
+        requestedTime = null;
+        index++;
+
+        log('[MssHandler] Getting the next request at index: ' + index);
+
+        finished = isMediaFinished(representation);
+        if (finished) {
+            request = new FragmentRequest();
+            request.action = FragmentRequest.ACTION_COMPLETE;
+            request.index = index;
+            request.mediaType = type;
+            request.mediaInfo = streamProcessor.getMediaInfo();
+            log('[MssHandler] Signal complete.');
+        } else {
+            updateSegments(representation);
+            segment = getSegmentByIndex(index, representation);
+            request = getRequestForSegment(segment);
+            if (!segment && isDynamic) {
+                /*
+                 Sometimes when playing dynamic streams with 0 fragment delay at live edge we ask for
+                 an index before it is available so we decrement index back and send null request
+                 which triggers the validate loop to rerun and the next time the segment should be
+                 available.
+                 */
+                index-- ;
+            }
+        }
+
+        return request;
     }
-    
     function setCurrentTime(value) {
          currentTime = value;
     }
@@ -500,10 +534,12 @@ function MssHandler(config) {
     }
     
     function getEarliestTime() {
-        log('[MSSHandler] getEarliestTime - und');
+        return earliestTime;
     }
     
-    function reset() {}
+    function reset() {
+        earliestTime = NaN;
+    }
 
     instance = {
         initialize: initialize,

@@ -84,6 +84,9 @@ function MediaPlayer() {
     const MEDIA_PLAYER_NOT_INITIALIZED_ERROR = 'MediaPlayer not initialized!';
 
     let context = this.context;
+    let eventBus = EventBus(context).getInstance();
+    let debug = Debug(context).getInstance();
+    let log = debug.log;
     
     if (arguments[0] && arguments[0].type) {
         context.type = arguments[0].type;
@@ -92,11 +95,6 @@ function MediaPlayer() {
         context.type='dash';
     }
     
-    
-    let eventBus = EventBus(context).getInstance();
-    let debug = Debug(context).getInstance();
-    let log = debug.log;
-
     let instance,
         source,
         protectionData,
@@ -128,7 +126,7 @@ function MediaPlayer() {
         protectionData = null;
         adapter = null;
         Events.extend(MediaPlayerEvents);
-        mediaPlayerModel = MediaPlayerModel(context).getInstance();
+        mediaPlayerModel = MediaPlayerModel(context).getInstance(); 
     }
 
     /**
@@ -1803,6 +1801,7 @@ function MediaPlayer() {
     function createManifestParser() {
         //TODO-Refactor Need to be able to switch this create out so will need API to set which parser to use?
         if (context.type === "mss") {
+            log ('[MediaPlayer] - Switching to MSS parser');
             return MssParser(context).create();    
         }
         return DashParser(context).create();
