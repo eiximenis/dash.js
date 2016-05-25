@@ -416,7 +416,7 @@ function MssFragmentController() {
 
         chunk = createDataChunk(bytes, request, streamId);
         if (!isInit) {
-            processNonInitChunks(bytes, request);
+            chunk.bytes = processNonInitChunks(bytes, request);
         }
         eventBus.trigger(isInit ? Events.INIT_FRAGMENT_LOADED : Events.MEDIA_FRAGMENT_LOADED, {chunk: chunk, fragmentModel: e.sender});
     }
