@@ -79,8 +79,45 @@ function MssParser() {
 
             return period;
         },
+        // Map MSS <Clip> element to a Period in MPD
+        mapPeriodCSM = function() {
+			var periods = [],
+				period = {},
+				adaptations = [],
+				smoothNode = domParser.getChildNode(xmlDoc, "SmoothStreamingMedia"),
+				durationCMS = 0,
+				i,
+				j,
+				start = 0;
 
-        mapAdaptationSet = function(streamIndex) {
+			smoothNode = smoothNode.getElementsByTagName("Clip");
+
+			for(j = 0; j < smoothNode.length; j++) {
+				period = {};
+				adaptations = [];
+				period.BaseURL = smoothNode[j].getAttribute("Url");
+				durationCMS = parseFloat(smoothNode[j].getAttribute("ClipEnd")) - parseFloat(smoothNode[j].getAttribute("ClipBegin"));
+				period.duration = (durationCMS === 0) ? Infinity : (durationCMS / TIME_SCALE_100_NANOSECOND_UNIT);
+				// For each StreamIndex node, create an AdaptationSet element
+				for(i = 0; i < smoothNode[j].childNodes.length; i++) {
+					if(smoothNode[j].childNodes[i].nodeName === "StreamIndex") {
+						adaptations.push(mapAdaptationSet.call(this, smoothNode[j].childNodes[i], period.BaseURL.replace(".ism/Manifest", ".ism/")));
+					}
+				}
+
+				period.AdaptationSet = (adaptations.length > 1) ? adaptations : adaptations[0];
+				period.AdaptationSet_asArray = adaptations;
+
+				//period.start = 0;//(parseFloat(smoothNode[j].getAttribute("ClipBegin"))/ TIME_SCALE_100_NANOSECOND_UNIT);
+
+				periods.push(period);
+				//start += period.duration;
+			}
+
+			return periods;
+		},
+
+        mapAdaptationSet = function(streamIndex, periodBaseUrl) {
 
             var adaptationSet = {},
                 representations = [],
@@ -96,7 +133,7 @@ function MssParser() {
             adaptationSet.mimeType = mimeTypeMap[adaptationSet.contentType];
             adaptationSet.maxWidth = domParser.getAttributeValue(streamIndex, "MaxWidth");
             adaptationSet.maxHeight = domParser.getAttributeValue(streamIndex, "MaxHeight");
-            adaptationSet.BaseURL = baseURL;
+            adaptationSet.BaseURL =  periodBaseUrl || baseURL;
 
             // Create a SegmentTemplate with a SegmentTimeline
             segmentTemplate = mapSegmentTemplate.call(this, streamIndex);
@@ -135,6 +172,7 @@ function MssParser() {
             segments = segmentTemplate.SegmentTimeline.S_asArray;
             
             /*
+            // TODO EDU -> Review this
             metricsModel.addDVRInfo(adaptationSet.contentType, 0, null, {
                 start: segments[0].t / segmentTemplate.timescale,
                 end: (segments[segments.length - 1].t + segments[segments.length - 1].d)  / segmentTemplate.timescale
@@ -160,17 +198,22 @@ function MssParser() {
             if (fourCCValue === null) {
                 fourCCValue = domParser.getAttributeValue(streamIndex, "FourCC");
             }
+            
+            // If still not defined (optionnal for audio stream, see https://msdn.microsoft.com/en-us/library/ff728116%28v=vs.95%29.aspx),
+            // then we consider the stream is an audio AAC stream
+            if (fourCCValue === null || fourCCValue === "") {
+                fourCCValue = "AAC";        
+            }
+
             // Do not support AACH (TODO)
             if (fourCCValue.indexOf("AACH") >= 0) {
                 return null;
             }
 
             // Get codecs value according to FourCC field
-            // Note: If empty FourCC (optionnal for audio stream, see https://msdn.microsoft.com/en-us/library/ff728116%28v=vs.95%29.aspx),
-            // then we consider the stream is an audio AAC stream
             if (fourCCValue === "H264" || fourCCValue === "AVC1") {
                 representation.codecs = getH264Codec.call(this, qualityLevel);
-            } else if ((fourCCValue.indexOf("AAC") >= 0) || (fourCCValue === "")) {
+            } else if (fourCCValue.indexOf("AAC") >= 0) {
                 representation.codecs = getAACCodec.call(this, qualityLevel, fourCCValue);
                 representation.audioSamplingRate = parseInt(domParser.getAttributeValue(qualityLevel, "SamplingRate"), 10);
                 representation.audioChannels = parseInt(domParser.getAttributeValue(qualityLevel, "Channels"), 10);
@@ -463,7 +506,10 @@ function MssParser() {
 
             // Set mpd node properties
             mpd.profiles = "urn:mpeg:dash:profile:isoff-live:2011";
-            mpd.type = Boolean(domParser.getAttributeValue(smoothNode, 'IsLive')) ? "dynamic" : "static";
+            mpd.type = Boolean(domParser.getAttributeValue(smoothNode, 'IsLive')) 
+                ? "dynamic" 
+                : (domParser.getChildNode(smoothNode, "Clip") ? "csm" : "static");
+           
             mpd.timeShiftBufferDepth = parseFloat(domParser.getAttributeValue(smoothNode, 'DVRWindowLength')) / TIME_SCALE_100_NANOSECOND_UNIT;
             mpd.mediaPresentationDuration = (parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) === 0) ? Infinity : parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) / TIME_SCALE_100_NANOSECOND_UNIT;
             mpd.BaseURL = baseURL;
@@ -476,11 +522,19 @@ function MssParser() {
             }
 
             // Map period node to manifest root node
-            mpd.Period = mapPeriod.call(this);
-            mpd.Period_asArray = [mpd.Period];
-
+            if (mpd.type==="csm") {
+                mpd.Period = mapPeriodCSM.call(this);
+				mpd.BaseURL = mpd.Period[0].BaseURL;
+				mpd.Period_asArray = mpd.Period;
+				mpd.type = "static";
+            }
+            else {
+                mpd.Period = mapPeriod.call(this);
+                mpd.Period_asArray = [mpd.Period];
+            }
+            
             // Initialize period start time
-            period = mpd.Period;
+            period = mpd.Period_asArray[0];
             period.start = 0;
 
             // ContentProtection node
@@ -522,7 +576,7 @@ function MssParser() {
             for (i = 0; i < adaptations.length; i += 1) {
                 // In case of VOD streams, check if start time is greater than 0.
                 // Therefore, set period start time to the higher adaptation start time
-                if (mpd.type === "static" && adaptations[i].contentType !== 'text') {
+                if (mpd.type !== "dynamic" && adaptations[i].contentType !== 'text') {
                     firstSegment = adaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
                     adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;
                     period.start = (period.start === 0) ? adaptationTimeOffset : Math.max(period.start, adaptationTimeOffset);
