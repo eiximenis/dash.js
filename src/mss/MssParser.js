@@ -112,7 +112,7 @@ function MssParser() {
 				period.AdaptationSet = (adaptations.length > 1) ? adaptations : adaptations[0];
 				period.AdaptationSet_asArray = adaptations;
 
-				//period.start = 0;//(parseFloat(smoothNode[j].getAttribute("ClipBegin"))/ TIME_SCALE_100_NANOSECOND_UNIT);
+				period.start = 0;//(parseFloat(smoothNode[j].getAttribute("ClipBegin"))/ TIME_SCALE_100_NANOSECOND_UNIT);
 
 				periods.push(period);
 				//start += period.duration;
@@ -575,21 +575,25 @@ function MssParser() {
                 /* @exec reject('"[MssParser] Protected content detected but protection module is not included."') */
                 /* @endif */
             }
+            
+            for (var pidx = 0; pidx < mpd.Period_asArray.length; pidx++) {
+                
+                let cperiod = mpd.Period_asArray[pidx];
+                let cadaptations = cperiod.AdaptationSet_asArray;
+                for (i = 0; i < cadaptations.length; i += 1) {
+                    // In case of VOD streams, check if start time is greater than 0.
+                    // Therefore, set period start time to the higher adaptation start time
+                    if (mpd.type !== "dynamic" && cadaptations[i].contentType !== 'text') {
+                        firstSegment = cadaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
+                        adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;
+                        cperiod.start = (cperiod.start === 0) ? adaptationTimeOffset : Math.max(cperiod.start, adaptationTimeOffset);
+                    }
 
-            adaptations = period.AdaptationSet_asArray;
-            for (i = 0; i < adaptations.length; i += 1) {
-                // In case of VOD streams, check if start time is greater than 0.
-                // Therefore, set period start time to the higher adaptation start time
-                if (mpd.type !== "dynamic" && adaptations[i].contentType !== 'text') {
-                    firstSegment = adaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
-                    adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;
-                    period.start = (period.start === 0) ? adaptationTimeOffset : Math.max(period.start, adaptationTimeOffset);
-                }
-
-                // Propagate content protection information into each adaptation
-                if (mpd.ContentProtection !== undefined) {
-                    adaptations[i].ContentProtection = mpd.ContentProtection;
-                    adaptations[i].ContentProtection_asArray = mpd.ContentProtection_asArray;
+                    // Propagate content protection information into each adaptation
+                    if (mpd.ContentProtection !== undefined) {
+                        cadaptations[i].ContentProtection = mpd.ContentProtection;
+                        cadaptations[i].ContentProtection_asArray = mpd.ContentProtection_asArray;
+                    }
                 }
             }
 
