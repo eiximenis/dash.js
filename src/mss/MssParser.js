@@ -95,7 +95,11 @@ function MssParser() {
 			for(j = 0; j < smoothNode.length; j++) {
 				period = {};
 				adaptations = [];
-				period.BaseURL = smoothNode[j].getAttribute("Url");
+                let url =  smoothNode[j].getAttribute("Url");
+                if (url)  {
+                    period.BaseURL = url.replace(".ism/Manifest", ".ism/");
+                    period.BaseURL_asArray =[period.BaseURL];
+                } 
 				durationCMS = parseFloat(smoothNode[j].getAttribute("ClipEnd")) - parseFloat(smoothNode[j].getAttribute("ClipBegin"));
 				period.duration = (durationCMS === 0) ? Infinity : (durationCMS / TIME_SCALE_100_NANOSECOND_UNIT);
 				// For each StreamIndex node, create an AdaptationSet element
