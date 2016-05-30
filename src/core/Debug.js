@@ -110,9 +110,27 @@ function Debug() {
 
         eventBus.trigger(Events.LOG, {message: message});
     }
+    
+    /**
+     * This method will allow you send log messages to either the browser's console and/or dispatch an event to capture at the media player level.
+     * @param {...*} arguments The message you want to log. Each argument is logged on a SEPARATE line and NOT converted to string. This allows for dumping
+     * objects (whithout being converted to "[Object object]" string).
+     * @memberof module:Debug
+     * @instance
+     */
+    function logObjects(...args) {
+        for (let arg of args) {
+            if (getLogToBrowserConsole) {
+                console.log(arg);
+            }
+        }
+        
+         eventBus.trigger(Events.LOG, {message: args});
+    }
 
     instance = {
         log: log,
+        logObjects: logObjects,
         setLogTimestampVisible: setLogTimestampVisible,
         setLogToBrowserConsole: setLogToBrowserConsole,
         getLogToBrowserConsole: getLogToBrowserConsole,

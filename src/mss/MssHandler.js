@@ -39,6 +39,7 @@ function MssHandler(config) {
     
     let context = this.context;
     let log = Debug(context).getInstance().log;
+    let logObjects = Debug(context).getInstance().logObjects;
     const urlUtils = URLUtils(context).getInstance();
     let streamProcessor, requestedTime, segmentsGetter, isDynamic, index;
     let eventBus = EventBus(context).getInstance();
@@ -420,6 +421,8 @@ function MssHandler(config) {
         request.adaptationIndex = representation.adaptation.index;
 
         if (setRequestUrl(request, url, representation)) {
+            logObjects('[MssHandler] getRequestForSegment. Segment:',  segment);
+            logObjects('[MssHandler] getRequestForSegment. Request:',  request);
             return request;
         }
     }
