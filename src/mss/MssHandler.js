@@ -331,7 +331,7 @@ function MssHandler(config) {
 
         if (!representation) return null;
         
-        log("[MssHandler] generating init request for representatio type: " + type);
+        logObjects("[MssHandler] generating init request for representation: ", representation);
         request = generateInitRequest(representation, type);
         return request;
     }    

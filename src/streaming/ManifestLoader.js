@@ -102,7 +102,9 @@ function ManifestLoader(config) {
                     baseUri = urlUtils.parseBaseUrl(url);
                 }
 
-                const manifest = parser.parse(data, {xlinkController, baseUri});
+                const manifest = context.type === "dash" 
+                    ? parser.parse(data, xlinkController)
+                    : parser.parse(data, {xlinkController, baseUri});
 
                 if (manifest) {
                     manifest.url = actualUrl || url;

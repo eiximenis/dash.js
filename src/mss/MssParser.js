@@ -112,7 +112,7 @@ function MssParser() {
 				period.AdaptationSet = (adaptations.length > 1) ? adaptations : adaptations[0];
 				period.AdaptationSet_asArray = adaptations;
 
-				period.start = 0;//(parseFloat(smoothNode[j].getAttribute("ClipBegin"))/ TIME_SCALE_100_NANOSECOND_UNIT);
+				//period.start = 0;//(parseFloat(smoothNode[j].getAttribute("ClipBegin"))/ TIME_SCALE_100_NANOSECOND_UNIT);
 
 				periods.push(period);
 				//start += period.duration;
@@ -586,7 +586,7 @@ function MssParser() {
                     if (mpd.type !== "dynamic" && cadaptations[i].contentType !== 'text') {
                         firstSegment = cadaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
                         adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;
-                        cperiod.start = (cperiod.start === 0) ? adaptationTimeOffset : Math.max(cperiod.start, adaptationTimeOffset);
+                        //cperiod.start = (cperiod.start === 0) ? adaptationTimeOffset : Math.max(cperiod.start, adaptationTimeOffset);
                     }
 
                     // Propagate content protection information into each adaptation
