@@ -67,10 +67,50 @@ function MssHandler(config) {
     function onInitializationLoaded(e) {
         var representation = e.representation;
         log("[MssHandler] onInitializationLoaded");
+        if (!representation.segments) return;
+        eventBus.trigger(Events.REPRESENTATION_UPDATED, {sender: this, representation: representation});        
     }
     
     function onSegmentsLoaded(e) {
-        log("[MssHandler] onSegmentsLoaded");
+        if (e.error || (type !== e.mediaType)) return;
+
+        var fragments = e.segments;
+        var representation = e.representation;
+        var segments = [];
+        var count = 0;
+
+        var i,
+            len,
+            s,
+            seg;
+
+        for (i = 0, len = fragments.length; i < len; i++) {
+            s = fragments[i];
+
+            seg = getTimeBasedSegment(
+                timelineConverter,
+                isDynamic,
+                representation,
+                s.startTime,
+                s.duration,
+                s.timescale,
+                s.media,
+                s.mediaRange,
+                count);
+
+            segments.push(seg);
+            seg = null;
+            count++;
+        }
+
+        representation.segmentAvailabilityRange = {start: segments[0].presentationStartTime, end: segments[len - 1].presentationStartTime};
+        representation.availableSegmentsNumber = len;
+
+        onSegmentListUpdated(representation, segments);
+
+        if (!representation.initialization) return;
+
+        eventBus.trigger(Events.REPRESENTATION_UPDATED, {sender: this, representation: representation});
     }
 
     
