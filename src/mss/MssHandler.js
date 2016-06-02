@@ -355,6 +355,7 @@ function MssHandler(config) {
                 fTime = seg.presentationStartTime - period.start;
                 sDuration = representation.adaptation.period.duration;
                 log(representation.segmentInfoType + ': ' + fTime + ' / ' + sDuration);
+                logObjects(seg);
                 isFinished = segmentInfoType === 'SegmentTimeline' && isDynamic ? false : (fTime >= sDuration);
             }
         } else {

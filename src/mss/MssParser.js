@@ -100,7 +100,12 @@ function MssParser() {
                     period.BaseURL = url.replace(".ism/Manifest", ".ism/");
                     period.BaseURL_asArray =[period.BaseURL];
                 } 
-				durationCMS = parseFloat(smoothNode[j].getAttribute("ClipEnd")) - parseFloat(smoothNode[j].getAttribute("ClipBegin"));
+                
+                var clipBegin = parseFloat(smoothNode[j].getAttribute("ClipBegin"));
+                var clipEnd = parseFloat(smoothNode[j].getAttribute("ClipEnd"));
+				durationCMS = clipEnd - clipBegin;
+                period.clipBegin = clipBegin;
+                period.clipEnd = clipEnd; 
 				period.duration = (durationCMS === 0) ? Infinity : (durationCMS / TIME_SCALE_100_NANOSECOND_UNIT);
 				// For each StreamIndex node, create an AdaptationSet element
 				for(i = 0; i < smoothNode[j].childNodes.length; i++) {
@@ -225,6 +230,7 @@ function MssParser() {
 
             representation.codecPrivateData = "" + domParser.getAttributeValue(qualityLevel, "CodecPrivateData");
             representation.BaseURL = qualityLevel.BaseURL;
+            
 
             return representation;
         },
@@ -317,9 +323,9 @@ function MssParser() {
 
             segmentTemplate.media = mediaUrl;
             segmentTemplate.timescale = TIME_SCALE_100_NANOSECOND_UNIT;
-
             segmentTemplate.SegmentTimeline = mapSegmentTimeline.call(this, streamIndex);
-
+            //segmentTemplate.presentationTimeOffset = segmentTemplate.SegmentTimeline.S_asArray[0].t;
+                   
             return segmentTemplate;
         },
 
@@ -586,15 +592,18 @@ function MssParser() {
                     if (mpd.type !== "dynamic" && cadaptations[i].contentType !== 'text') {
                         firstSegment = cadaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
                         adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;
-                        //cperiod.start = (cperiod.start === 0) ? adaptationTimeOffset : Math.max(cperiod.start, adaptationTimeOffset);
+                        cperiod.start = (cperiod.start === 0) ? adaptationTimeOffset : Math.max(cperiod.start, adaptationTimeOffset);
                     }
-
+                    
                     // Propagate content protection information into each adaptation
                     if (mpd.ContentProtection !== undefined) {
                         cadaptations[i].ContentProtection = mpd.ContentProtection;
                         cadaptations[i].ContentProtection_asArray = mpd.ContentProtection_asArray;
                     }
                 }
+                
+                delete cperiod.start;
+       
             }
 
             // Delete Content Protection under root mpd node

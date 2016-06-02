@@ -155,7 +155,24 @@ export function getIndexBasedSegment(timelineConverter, isDynamic, representatio
 }
 
 export function getTimeBasedSegment(timelineConverter, isDynamic, representation, time, duration, fTimescale, url, range, index) {
+    
     var scaledTime = time / fTimescale;
+    if (representation.initialization === "MSS") {
+        var mpd_period = representation.adaptation.period.mpd.manifest.Period_asArray[representation.adaptation.period.index];
+        var mpd_adaptation = mpd_period.AdaptationSet_asArray[representation.adaptation.index];
+        var mpd_repr = mpd_adaptation.Representation_asArray[representation.index];
+        // Smooth streaming representation can be bounded to a MSS period created from Clip, so some adjustments need to be made        
+        var cbegin = mpd_period.clipBegin;
+        if (cbegin) {            
+            var first_S =mpd_repr.SegmentTemplate.SegmentTimeline.S_asArray[0];
+            if (cbegin) {
+                scaledTime =  (time  / fTimescale) - (first_S.t / fTimescale);
+            }
+        }
+
+    }
+    
+    
     var scaledDuration = Math.min(duration / fTimescale, representation.adaptation.period.mpd.maxSegmentDuration);
 
     var presentationStartTime,
