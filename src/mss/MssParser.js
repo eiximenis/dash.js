@@ -102,11 +102,16 @@ function MssParser() {
                 } 
                 
                 var clipBegin = parseFloat(smoothNode[j].getAttribute("ClipBegin"));
+                
+                // Adjust ClipBegin to first time of S
+                
+                
                 var clipEnd = parseFloat(smoothNode[j].getAttribute("ClipEnd"));
 				durationCMS = clipEnd - clipBegin;
                 period.clipBegin = clipBegin;
                 period.clipEnd = clipEnd; 
 				period.duration = (durationCMS === 0) ? Infinity : (durationCMS / TIME_SCALE_100_NANOSECOND_UNIT);
+                period.id = j;
 				// For each StreamIndex node, create an AdaptationSet element
 				for(i = 0; i < smoothNode[j].childNodes.length; i++) {
 					if(smoothNode[j].childNodes[i].nodeName === "StreamIndex") {
@@ -120,11 +125,42 @@ function MssParser() {
 				//period.start = 0;//(parseFloat(smoothNode[j].getAttribute("ClipBegin"))/ TIME_SCALE_100_NANOSECOND_UNIT);
 
 				periods.push(period);
+                
+                if (period.duration !== Infinity) {
+                    // adjustAllSegmentTimelines(period);
+                    // TODO Edu
+                }
+                
+                
 				//start += period.duration;
 			}
 
 			return periods;
 		},
+       
+        
+        adjustAllSegmentTimelines = function(period) {
+            var duration = period.duration;
+            for (let aidx = 0; aidx < period.AdaptationSet_asArray.length; aidx++) {
+                let adaptation = period.AdaptationSet_asArray[aidx];
+                for (let ridx = 0; ridx < adaptation.Representation_asArray.length; ridx++) {
+                    let representation = adaptation.Representation_asArray[ridx]; 
+                    let S_asArray =  representation.SegmentTemplate.SegmentTimeline.S_asArray;
+                    adjustSegmentTimeline(S_asArray, representation.SegmentTemplate.timescale, duration);
+                }
+            }
+        },
+        
+        adjustSegmentTimeline = function (S_asArray, timescale, periodDuration) {
+            var unescaledPeriodDuration = periodDuration * timescale;
+            var total_d = 0;
+            for (var sidx = 0; sidx < S_asArray.length -1 ; sidx++) {
+                total_d += S_asArray[sidx].d;
+            }
+            
+            let remaining = unescaledPeriodDuration- total_d;
+            S_asArray[S_asArray.length - 1].d = remaining;
+        },
 
         mapAdaptationSet = function(streamIndex, periodBaseUrl) {
 
@@ -146,7 +182,6 @@ function MssParser() {
 
             // Create a SegmentTemplate with a SegmentTimeline
             segmentTemplate = mapSegmentTemplate.call(this, streamIndex);
-
             qualityLevels = domParser.getChildNodes(streamIndex, "QualityLevel");
             // For each QualityLevel node, create a Representation element
             for (i = 0; i < qualityLevels.length; i++) {
@@ -582,28 +617,32 @@ function MssParser() {
                 /* @endif */
             }
             
+            var currentStart = 0;
             for (var pidx = 0; pidx < mpd.Period_asArray.length; pidx++) {
-                
                 let cperiod = mpd.Period_asArray[pidx];
                 let cadaptations = cperiod.AdaptationSet_asArray;
                 for (i = 0; i < cadaptations.length; i += 1) {
                     // In case of VOD streams, check if start time is greater than 0.
                     // Therefore, set period start time to the higher adaptation start time
-                    if (mpd.type !== "dynamic" && cadaptations[i].contentType !== 'text') {
-                        firstSegment = cadaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
-                        adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;
-                        cperiod.start = (cperiod.start === 0) ? adaptationTimeOffset : Math.max(cperiod.start, adaptationTimeOffset);
+                    if (mpd.type === "dynamic") {
+                        if (cadaptations[i].contentType !== 'text') {
+                            firstSegment = cadaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
+                            adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;
+                            cperiod.start = (cperiod.start === 0) ? adaptationTimeOffset : Math.max(cperiod.start, adaptationTimeOffset);
+                        }
                     }
-                    
                     // Propagate content protection information into each adaptation
                     if (mpd.ContentProtection !== undefined) {
                         cadaptations[i].ContentProtection = mpd.ContentProtection;
                         cadaptations[i].ContentProtection_asArray = mpd.ContentProtection_asArray;
                     }
                 }
-                
-                delete cperiod.start;
-       
+                // In static manifests assume first period starts ALWAYS at 0 and next periods starts 
+                // when the previous one finishes.
+                if (mpd.type === "static") {           
+                    cperiod.start = currentStart;
+                    currentStart += period.duration;
+                }
             }
 
             // Delete Content Protection under root mpd node

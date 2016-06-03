@@ -156,21 +156,32 @@ export function getIndexBasedSegment(timelineConverter, isDynamic, representatio
 
 export function getTimeBasedSegment(timelineConverter, isDynamic, representation, time, duration, fTimescale, url, range, index) {
     
+    console.log ('getTimeBasedSegment -> -----------------------------------------------------------------------------------');
     var scaledTime = time / fTimescale;
     if (representation.initialization === "MSS") {
         var mpd_period = representation.adaptation.period.mpd.manifest.Period_asArray[representation.adaptation.period.index];
         var mpd_adaptation = mpd_period.AdaptationSet_asArray[representation.adaptation.index];
         var mpd_repr = mpd_adaptation.Representation_asArray[representation.index];
+        
+        
+        console.log('getTimeBasedSegment -> (period #, repr #) -> ' + representation.adaptation.period.index + ', ' + representation.index);
+        
+        
         // Smooth streaming representation can be bounded to a MSS period created from Clip, so some adjustments need to be made        
         var cbegin = mpd_period.clipBegin;
         if (cbegin) {            
             var first_S =mpd_repr.SegmentTemplate.SegmentTimeline.S_asArray[0];
             if (cbegin) {
                 scaledTime =  (time  / fTimescale) - (first_S.t / fTimescale);
+                /*
+                if (mpd_period.start) {
+                    scaledTime += mpd_period.start;
+                }*/
             }
         }
-
     }
+    
+    console.log('getTimeBasedSegment -> (time, duration) = scaledTime -> (' + time + ', ' + duration + ') = ' + scaledTime);
     
     
     var scaledDuration = Math.min(duration / fTimescale, representation.adaptation.period.mpd.maxSegmentDuration);
@@ -181,6 +192,8 @@ export function getTimeBasedSegment(timelineConverter, isDynamic, representation
 
     presentationStartTime = timelineConverter.calcPresentationTimeFromMediaTime(scaledTime, representation);
     presentationEndTime = presentationStartTime + scaledDuration;
+    
+    console.log('getTimeBasedSegment -> (scaledDuration, presentationStartTime, presentationEndTime) -> (' + scaledDuration + ', ' + presentationStartTime + ', ' + presentationEndTime + ')');
 
     seg = new Segment();
 
@@ -206,6 +219,8 @@ export function getTimeBasedSegment(timelineConverter, isDynamic, representation
     seg.media = url;
     seg.mediaRange = range;
     seg.availabilityIdx = index;
+    
+    console.log ('getTimeBasedSegment -> -----------------------------------------------------------------------------------');
 
     return seg;
 }
