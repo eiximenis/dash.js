@@ -158,16 +158,16 @@ function MssParser() {
             
             
             for (var sidx = 0; sidx <= S_asArray.length -1 ; sidx++) {
-                /*
                 if (sidx == 0) {
                     S_asArray[sidx].d = (S_asArray[sidx].t + S_asArray[sidx].d) -  begin;
                 }
-                */
+                
+                
                 S_asArray[sidx]._msst = S_asArray[sidx].t;
                 S_asArray[sidx].t = total_d;
-                total_d +=  S_asArray[sidx].d;
+                // total_d +=  S_asArray[sidx].d;
                 
-                /*
+                
                 
                 if (sidx == S_asArray.length - 1) {
                     let remaining = unescaledPeriodDuration- total_d;
@@ -180,7 +180,6 @@ function MssParser() {
                     total_d += S_asArray[sidx].d;
                     current_t += S_asArray[sidx].d;  
                 }
-                */
             }
         },
 
