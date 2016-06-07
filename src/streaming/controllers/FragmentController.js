@@ -137,6 +137,7 @@ function FragmentController(/*config*/) {
         }
 
         chunk = createDataChunk(bytes, request, streamId);
+       
         eventBus.trigger(isInit ? Events.INIT_FRAGMENT_LOADED : Events.MEDIA_FRAGMENT_LOADED, {chunk: chunk, fragmentModel: e.sender});
     }
 

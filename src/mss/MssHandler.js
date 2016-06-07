@@ -505,6 +505,7 @@ function MssHandler(config) {
         }
 
         finished = !ignoreIsFinished ? isMediaFinished(representation) : false;
+        
         if (finished) {
             request = new FragmentRequest();
             request.action = FragmentRequest.ACTION_COMPLETE;

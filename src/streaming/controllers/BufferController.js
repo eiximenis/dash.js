@@ -554,6 +554,9 @@ function BufferController(config) {
     function updateBufferTimestampOffset(MSETimeOffset) {
         // each track can have its own @presentationTimeOffset, so we should set the offset
         // if it has changed after switching the quality or updating an mpd
+
+        if (context.type==="mss") {return;}
+
         if (buffer && buffer.timestampOffset !== MSETimeOffset && !isNaN(MSETimeOffset)) {
             buffer.timestampOffset = MSETimeOffset;
         }

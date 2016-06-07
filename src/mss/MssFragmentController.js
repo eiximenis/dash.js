@@ -415,6 +415,7 @@ function MssFragmentController() {
         }
 
         chunk = createDataChunk(bytes, request, streamId);
+        
         if (!isInit) {
             chunk.bytes = processNonInitChunks(bytes, request);
         }

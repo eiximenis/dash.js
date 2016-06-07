@@ -127,8 +127,8 @@ function MssParser() {
 				periods.push(period);
                 
                 if (period.duration !== Infinity) {
-                    // adjustAllSegmentTimelines(period);
-                    // TODO Edu
+                    adjustAllSegmentTimelines(period);
+                    log('[MSSParser] -> Adjusted segments (S_asArray) durations');
                 }
                 
                 
@@ -140,26 +140,48 @@ function MssParser() {
        
         
         adjustAllSegmentTimelines = function(period) {
-            var duration = period.duration;
             for (let aidx = 0; aidx < period.AdaptationSet_asArray.length; aidx++) {
                 let adaptation = period.AdaptationSet_asArray[aidx];
                 for (let ridx = 0; ridx < adaptation.Representation_asArray.length; ridx++) {
                     let representation = adaptation.Representation_asArray[ridx]; 
                     let S_asArray =  representation.SegmentTemplate.SegmentTimeline.S_asArray;
-                    adjustSegmentTimeline(S_asArray, representation.SegmentTemplate.timescale, duration);
+                    adjustSegmentTimeline(S_asArray, representation.SegmentTemplate.timescale, period);
                 }
             }
         },
         
-        adjustSegmentTimeline = function (S_asArray, timescale, periodDuration) {
-            var unescaledPeriodDuration = periodDuration * timescale;
+        adjustSegmentTimeline = function (S_asArray, timescale, period) {
+            var begin = period.clipBegin;
+            var unescaledPeriodDuration = period.duration * timescale;
             var total_d = 0;
-            for (var sidx = 0; sidx < S_asArray.length -1 ; sidx++) {
-                total_d += S_asArray[sidx].d;
-            }
+            var current_t = begin;
             
-            let remaining = unescaledPeriodDuration- total_d;
-            S_asArray[S_asArray.length - 1].d = remaining;
+            
+            for (var sidx = 0; sidx <= S_asArray.length -1 ; sidx++) {
+                /*
+                if (sidx == 0) {
+                    S_asArray[sidx].d = (S_asArray[sidx].t + S_asArray[sidx].d) -  begin;
+                }
+                */
+                S_asArray[sidx]._msst = S_asArray[sidx].t;
+                S_asArray[sidx].t = total_d;
+                total_d +=  S_asArray[sidx].d;
+                
+                /*
+                
+                if (sidx == S_asArray.length - 1) {
+                    let remaining = unescaledPeriodDuration- total_d;
+                    if (remaining < 0) {
+                        debugger;
+                    }
+                    S_asArray[sidx].d = remaining;
+                }
+                else {
+                    total_d += S_asArray[sidx].d;
+                    current_t += S_asArray[sidx].d;  
+                }
+                */
+            }
         },
 
         mapAdaptationSet = function(streamIndex, periodBaseUrl) {
@@ -639,10 +661,14 @@ function MssParser() {
                 }
                 // In static manifests assume first period starts ALWAYS at 0 and next periods starts 
                 // when the previous one finishes.
+                
+                /*
                 if (mpd.type === "static") {           
                     cperiod.start = currentStart;
-                    currentStart += period.duration;
+                    currentStart += cperiod.duration;
                 }
+                */
+                
             }
 
             // Delete Content Protection under root mpd node
