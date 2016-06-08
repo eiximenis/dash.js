@@ -16,16 +16,20 @@
 import ErrorHandler from '../streaming/utils/ErrorHandler';
 import FactoryMaker from '../core/FactoryMaker.js';
 import Debug from '../core/Debug';
-import DOMParser from '../streaming/utils/DOMParser.js';
+import _DOMParser from '../streaming/utils/DOMParser.js';
 import MetricsModel from '../streaming/models/MetricsModel.js';
 import DashAdapter from '../dash/DashAdapter.js';
 import {BASE64} from './lib/base64.js';
+import KeySystemWidevine from '../streaming/protection/drm/KeySystemPlayReady.js';
+import KeySystemPlayReady from '../streaming/protection/drm/KeySystemPlayReady.js';
 
 function MssParser() {
     let context = this.context;
     let log = Debug(context).getInstance().log;
-    let domParser = DOMParser(context).getInstance();
+    let domParser = _DOMParser(context).getInstance();
     let metricsModel = MetricsModel(context).getInstance();
+    let ksWidevine = KeySystemWidevine(context).getInstance();
+    let ksPlayReady = KeySystemPlayReady(context).getInstance();
     let instance;
     
     var TIME_SCALE_100_NANOSECOND_UNIT = 10000000.0,
@@ -432,6 +436,7 @@ function MssParser() {
             var prHeader,
                 wrmHeader,
                 xmlReader,
+                KIDNode,
                 KID;
                
 
@@ -449,15 +454,15 @@ function MssParser() {
 
             // Parse <WRMHeader> to get KID field value
             xmlReader = (new DOMParser()).parseFromString(wrmHeader, "application/xml");
-            KID = xmlReader.querySelector("KID").textContent;
+            KIDNode = xmlReader.querySelector("KID");
 
-            // Get KID (base64 decoded) as byte array
-            KID = BASE64.decodeArray(KID);
-
-            // Convert UUID from little-endian to big-endian
-            convertUuidEndianness(KID);
-
-            return KID;
+            if (KIDNode) {
+                // Get KID (base64 decoded) as byte array
+                KID = BASE64.decodeArray(KIDNode.textContent);
+                // Convert UUID from little-endian to big-endian
+                convertUuidEndianness(KID);
+                return KID;
+            }
         },
 
         getWRMHeaderFromPRHeader = function(prHeader) {
@@ -518,7 +523,7 @@ function MssParser() {
         createPRContentProtection = function(protectionHeader) {
 
             var contentProtection = {},
-                keySystem = this.system.getObject("ksPlayReady"),
+                keySystem = ksPlayReady,
                 pro;
 
             pro = {
@@ -547,7 +552,7 @@ function MssParser() {
         createWidevineContentProtection = function(protectionHeader) {
 
             var contentProtection = {},
-                keySystem = this.system.getObject("ksWidevine");
+                keySystem = ksWidevine;
 
             contentProtection.schemeIdUri = keySystem.schemeIdURI;
             contentProtection.value = keySystem.systemString;
