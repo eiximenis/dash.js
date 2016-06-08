@@ -669,6 +669,11 @@
                     "name":"VOD Superspeedway",
                     "url":"http://playready.directtaps.net/smoothstreaming/SSWSS720H264/SuperSpeedway_720.ism/Manifest",
                     "browsers":"cdsbi"
+                },
+                {
+                    "name":"LIVE Big Buck Bunny",
+                    "url":"http://2is7server1.rd.francetelecom.com/C4/C4-51_BBB.isml/Manifest",
+                    "browsers":"cdsbi"
                 }
             ]
         }        
