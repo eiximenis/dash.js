@@ -53,6 +53,7 @@ function PlaybackController() {
         adapter,
         videoModel,
         currentTime,
+        lastRequestedSeekTime,
         liveStartTime,
         wallclockTimeIntervalId,
         commonEarliestTime,
@@ -63,6 +64,7 @@ function PlaybackController() {
 
     function setup() {
         currentTime = 0;
+        lastRequestedSeekTime = 0;
         liveStartTime = NaN;
         wallclockTimeIntervalId = null;
         isDynamic = null;
@@ -144,7 +146,12 @@ function PlaybackController() {
     function seek(time) {
         if (!videoModel) return;
         log('Requesting seek to time: ' + time);
+        lastRequestedSeekTime = time;
         videoModel.setCurrentTime(time);
+    }
+
+    function getLastRequestedSeekTime() {
+        return lastRequestedSeekTime;
     }
 
     function getTime() {

@@ -48,6 +48,8 @@ import Debug from '../core/Debug';
 import FactoryMaker from '../core/FactoryMaker';
 import TextSourceBuffer from './TextSourceBuffer';
 
+import SourceBufferController from './controllers/SourceBufferController';
+
 function Stream(config) {
 
     const DATA_UPDATE_FAILED_ERROR_CODE = 1;
@@ -106,6 +108,7 @@ function Stream(config) {
 
         eventBus.on(Events.BUFFERING_COMPLETED, onBufferingCompleted, instance);
         eventBus.on(Events.DATA_UPDATE_COMPLETED, onDataUpdateCompleted, instance);
+        eventBus.on(Events.SOURCEBUFFER_APPEND_COMPLETED, onSourceBufferAppendCompleted);
     }
 
     function initialize(StreamInfo, ProtectionController) {
@@ -512,6 +515,25 @@ function Stream(config) {
 
         updateError[sp.getType()] = e.error;
         checkIfInitializationCompleted();
+    }
+
+    function onSourceBufferAppendCompleted(e) {
+        if (e.error) {
+            return;
+        }
+        let lastSeekRequested = playbackController.getLiveStartTime();
+        let chunk = e.chunk;
+        let processor = getProcessorForMediaInfo(e.chunk.mediaInfo);
+        log("[Stream] -> Check start time (" + lastSeekRequested + ")");
+        let sourceBufferController = SourceBufferController(context).getInstance();
+        let range = sourceBufferController.getBufferRange(processor.getBuffer(),lastSeekRequested, 2);
+
+        if (!range) {return;}
+
+        playbackController.seek(range.start);
+
+        eventBus.off(Events.SOURCEBUFFER_APPEND_COMPLETED, onSourceBufferAppendCompleted);
+
     }
 
     function getProcessorForMediaInfo(mediaInfo) {
