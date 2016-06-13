@@ -598,10 +598,12 @@ function MssParser() {
 				mpd.BaseURL = mpd.Period[0].BaseURL;
 				mpd.Period_asArray = mpd.Period;
 				mpd.type = "static";
+                mpd.hasClips = true;
             }
             else {
                 mpd.Period = mapPeriod.call(this);
                 mpd.Period_asArray = [mpd.Period];
+                mpd.hasClips = false;
             }
             
             // Initialize period start time
@@ -650,7 +652,7 @@ function MssParser() {
                 for (i = 0; i < cadaptations.length; i += 1) {
                     // In case of VOD streams, check if start time is greater than 0.
                     // Therefore, set period start time to the higher adaptation start time
-                    if (mpd.type === "dynamic") {
+                    if (mpd.type === "static" && !mpd.hasClips) {
                         if (cadaptations[i].contentType !== 'text') {
                             firstSegment = cadaptations[i].SegmentTemplate.SegmentTimeline.S_asArray[0];
                             adaptationTimeOffset = parseFloat(firstSegment.t) / TIME_SCALE_100_NANOSECOND_UNIT;

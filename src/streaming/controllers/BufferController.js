@@ -358,6 +358,8 @@ function BufferController(config) {
     function updateBufferLevel() {
         var currentTime = playbackController.getTime();
 
+        console.log('[BufferController] -> updateBufferLevel() currentTime = ' + currentTime);
+
         bufferLevel = sourceBufferController.getBufferLength(buffer, currentTime);
         eventBus.trigger(Events.BUFFER_LEVEL_UPDATED, {sender: instance, bufferLevel: bufferLevel});
         checkIfSufficientBuffer();

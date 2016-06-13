@@ -172,8 +172,21 @@ function TimelineSegmentsGetter(config, isDynamic) {
         }
 
         if (!isAvailableSegmentNumberCalculated) {
+            // Edu           
+            var availabilityStartTime,
+                    availabilityEndTime,
+                    f = fragments[0]
+
+            availabilityStartTime = (f.t === undefined) ? 0 : timelineConverter.calcPresentationTimeFromMediaTime(f.t / fTimescale, representation);
+            availabilityEndTime = timelineConverter.calcPresentationTimeFromMediaTime((time - frag.d) / fTimescale, representation);
+            representation.segmentAvailabilityRange = {
+                start: availabilityStartTime,
+                end: availabilityEndTime
+            };
             representation.availableSegmentsNumber = availabilityIdx + 1;
         }
+
+        console.log("Segments for time: " + requestedTime, segments);
 
         return segments;
     }

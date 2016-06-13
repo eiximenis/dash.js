@@ -34,6 +34,7 @@ import EventBus from '../../core/EventBus';
 import Events from '../../core/events/Events';
 import RulesController from '../rules/RulesController';
 import FactoryMaker from '../../core/FactoryMaker';
+import  Debug from '../../core/Debug';
 
 const LIVE_EDGE_NOT_FOUND_ERROR_CODE = 1;
 
@@ -41,6 +42,7 @@ function LiveEdgeFinder() {
 
     let context = this.context;
     let eventBus = EventBus(context).getInstance();
+    let log = Debug(context).getInstance().log;
 
     let instance,
         timelineConverter,
@@ -87,6 +89,7 @@ function LiveEdgeFinder() {
     function onSearchCompleted(req) {
         var searchTime = (new Date().getTime() - searchStartTime) / 1000;
         liveEdge = req.value;
+        log('[LiveEdgeFinder] -> onSearchCompleted. LiveEdge is ' + liveEdge + ' and searchStartTime is ' + searchStartTime + ' and searchTime is ' + searchTime);
         eventBus.trigger(Events.LIVE_EDGE_SEARCH_COMPLETED, {liveEdge: liveEdge, searchTime: searchTime, error: liveEdge === null ? new Error(LIVE_EDGE_NOT_FOUND_ERROR_CODE, 'live edge has not been found', null) : null});
     }
 
