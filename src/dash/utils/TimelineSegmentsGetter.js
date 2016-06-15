@@ -186,7 +186,9 @@ function TimelineSegmentsGetter(config, isDynamic) {
             representation.availableSegmentsNumber = availabilityIdx + 1;
         }
 
-        console.log("Segments for time: " + requestedTime, segments);
+        if (representation.segmentAvailabilityRange.end < representation.segmentAvailabilityRange.start) {
+            debugger;
+        }
 
         return segments;
     }

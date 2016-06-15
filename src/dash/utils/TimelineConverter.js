@@ -149,11 +149,12 @@ function TimelineConverter() {
             availableSegmentsStartTime,
             availableSegmentsEndTime;
 
-        if (!isDynamic) return range;
+        if (!isDynamic || representation.adaptation.period.mpd.manifest.isSmoothStreaming) return range;
 
         if (!isClientServerTimeSyncCompleted && representation.segmentAvailabilityRange) {
             return representation.segmentAvailabilityRange;
         }
+
 
         checkTime = representation.adaptation.period.mpd.checkTime;
         now = calcPresentationTimeFromWallTime(new Date(), representation.adaptation.period);

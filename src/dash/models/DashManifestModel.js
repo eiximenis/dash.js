@@ -632,6 +632,10 @@ function DashManifestModel() {
             mpd.maxSegmentDuration = manifest.maxSegmentDuration;
         }
 
+        if (manifest.hasOwnProperty('isSmoothStreaming')) {
+            mpd.isSmoothStreaming = manifest.isSmoothStreaming;
+        }
+
         return mpd;
     }
 

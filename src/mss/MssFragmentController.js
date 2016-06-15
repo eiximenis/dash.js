@@ -125,7 +125,7 @@ function MssFragmentController() {
         },
 
         convertFragment = function(data, request, adaptation) {
-            log('[MssFragmentController] converting fragment.');
+            log('[MssFragmentController] converting fragment of ' +  request.mediaType + " startTime: " + request.startTime );
             let periodIndex = 0;
             var i = 0,
                 // Get track id corresponding to adaptation set
@@ -433,7 +433,7 @@ function MssFragmentController() {
     
     function processNonInitChunks(bytes, request) {
         
-        log("[MssFragmentController] processNonInitChunks for adaptation " + request.adaptationIndex);
+        log("[MssFragmentController] processNonInitChunks for adaptation " + request.mediaType + " startTime: " + request.startTime);
         
         var result = null,
             manifest = manifestModel.getValue(),

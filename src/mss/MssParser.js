@@ -22,6 +22,7 @@ import DashAdapter from '../dash/DashAdapter.js';
 import {BASE64} from './lib/base64.js';
 import KeySystemWidevine from '../streaming/protection/drm/KeySystemPlayReady.js';
 import KeySystemPlayReady from '../streaming/protection/drm/KeySystemPlayReady.js';
+import IsSegmentAvailableOnServerRule from './rules/scheduling/IsSegmentAvailableOnServerRule';
 
 function MssParser() {
     let context = this.context;
@@ -30,6 +31,7 @@ function MssParser() {
     let metricsModel = MetricsModel(context).getInstance();
     let ksWidevine = KeySystemWidevine(context).getInstance();
     let ksPlayReady = KeySystemPlayReady(context).getInstance();
+    let isSegmentAvailableOnServerRule = IsSegmentAvailableOnServerRule(context).getInstance();
     let instance;
     
     var TIME_SCALE_100_NANOSECOND_UNIT = 10000000.0,
@@ -63,6 +65,7 @@ function MssParser() {
                 smoothNode = domParser.getChildNode(xmlDoc, "SmoothStreamingMedia"),
                 i;
 
+            
             period.duration = (parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) === 0) ? Infinity : parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) / TIME_SCALE_100_NANOSECOND_UNIT;
             period.BaseURL = baseURL;
 
@@ -395,12 +398,15 @@ function MssParser() {
                 chunks = domParser.getChildNodes(streamIndex, "c"),
                 segments = [],
                 i,
-                t, d;
+                t, d,
+                total_d;
 
+            total_d = 0;
             for (i = 0; i < chunks.length; i++) {
                 // Get time and duration attributes
                 t = parseFloat(domParser.getAttributeValue(chunks[i], "t"));
                 d = parseFloat(domParser.getAttributeValue(chunks[i], "d"));
+                total_d += d;
 
                 if ((i === 0) && !t) {
                     t = 0;
@@ -427,7 +433,7 @@ function MssParser() {
 
             segmentTimeline.S = segments;
             segmentTimeline.S_asArray = segments;
-
+            segmentTimeline.total_d = total_d;
             return segmentTimeline;
         },
 
@@ -561,6 +567,16 @@ function MssParser() {
         },
         /* @endif */
 
+        calcMediaPresentationDuration = function(smoothNode, isDynamic, dvrWindowLength) {
+            if (isDynamic) {
+                return dvrWindowLength;
+            }
+            else {
+                return (parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) === 0) ? Infinity : parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) / TIME_SCALE_100_NANOSECOND_UNIT;
+            }
+            
+        },
+
         processManifest = function(manifestLoadedTime) {
             var mpd = {},
                 period,
@@ -573,22 +589,27 @@ function MssParser() {
                 KID,
                 firstSegment,
                 adaptationTimeOffset,
-                i;
+                i,
+                dvrWindowLength,
+                isDynamic;
 
             // Set mpd node properties
             mpd.profiles = "urn:mpeg:dash:profile:isoff-live:2011";
             mpd.type = Boolean(domParser.getAttributeValue(smoothNode, 'IsLive')) 
                 ? "dynamic" 
                 : (domParser.getChildNode(smoothNode, "Clip") ? "csm" : "static");
+
+            
+            isDynamic = mpd.type === "dynamic";
            
-            mpd.timeShiftBufferDepth = parseFloat(domParser.getAttributeValue(smoothNode, 'DVRWindowLength')) / TIME_SCALE_100_NANOSECOND_UNIT;
-            mpd.mediaPresentationDuration = (parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) === 0) ? Infinity : parseFloat(domParser.getAttributeValue(smoothNode, 'Duration')) / TIME_SCALE_100_NANOSECOND_UNIT;
+            dvrWindowLength =  parseFloat(domParser.getAttributeValue(smoothNode, 'DVRWindowLength'));
+            mpd.timeShiftBufferDepth = dvrWindowLength / TIME_SCALE_100_NANOSECOND_UNIT;
             mpd.BaseURL = baseURL;
             //CCE
             mpd.minBufferTime = 12; // DEFAULT_MIN_BUFFER_TIME
             
             // In case of live streams, set availabilityStartTime property according to DVRWindowLength
-            if (mpd.type === "dynamic") {
+            if (isDynamic) {
                 mpd.availabilityStartTime = new Date(manifestLoadedTime.getTime() - (mpd.timeShiftBufferDepth * 1000));
             }
 
@@ -604,8 +625,15 @@ function MssParser() {
                 mpd.Period = mapPeriod.call(this);
                 mpd.Period_asArray = [mpd.Period];
                 mpd.hasClips = false;
+                if (isDynamic) {
+                    mpd.Period.duration = dvrWindowLength /  TIME_SCALE_100_NANOSECOND_UNIT;
+                    log('[MssParser] LIVE -> Initializing IsSegmentAvailableOnServerRule rule');
+                    isSegmentAvailableOnServerRule.init(getLastSegmentTimeFor(mpd.Period, "video"), "video");
+                    isSegmentAvailableOnServerRule.init(getLastSegmentTimeFor(mpd.Period, "audio"), "audio");
+                }
             }
             
+            mpd.mediaPresentationDuration = calcMediaPresentationDuration(smoothNode, isDynamic, dvrWindowLength);
             // Initialize period start time
             period = mpd.Period_asArray[0];
             period.start = 0;
@@ -684,6 +712,18 @@ function MssParser() {
             mpd.isSmoothStreaming = true;
             
             return mpd;
+        },
+
+        getLastSegmentTimeFor = function(period, mediaType) {
+            for (let aidx = 0; aidx < period.AdaptationSet_asArray.length; aidx++) {
+                let adaptation = period.AdaptationSet_asArray[aidx];
+                if (adaptation.contentType === mediaType) {
+                    let segments = adaptation.SegmentTemplate.SegmentTimeline.S_asArray;
+                    let last_t = segments[segments.length-1].t;
+                    return last_t / TIME_SCALE_100_NANOSECOND_UNIT;
+                }
+            }
+
         },
 
         internalParse = function(data, {baseUri}) {

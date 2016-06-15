@@ -47,11 +47,14 @@ import Events from '../../core/events/Events';
 import FactoryMaker from '../../core/FactoryMaker';
 import Debug from '../../core/Debug';
 
+import IsSegmentAvailableOnServerRule from '../../mss/rules/scheduling/IsSegmentAvailableOnServerRule';
+
 function ScheduleController(config) {
 
     let context = this.context;
     let log = Debug(context).getInstance().log;
     let eventBus = EventBus(context).getInstance();
+    let isMss = context.type === "mss";
 
     let metricsModel = config.metricsModel;
     let manifestModel = config.manifestModel;
@@ -60,6 +63,7 @@ function ScheduleController(config) {
     let dashManifestModel = config.dashManifestModel;
     let timelineConverter = config.timelineConverter;
     let mediaPlayerModel = config.mediaPlayerModel;
+    let isSegmentAvailableOnServerRule = IsSegmentAvailableOnServerRule(context).getInstance();
 
     let instance,
         type,
@@ -121,9 +125,7 @@ function ScheduleController(config) {
             sourceBufferController: SourceBufferController(context).getInstance(),
             virtualBuffer: VirtualBuffer(context).getInstance(),
             textSourceBuffer: TextSourceBuffer(context).getInstance()
-
         });
-
 
         if (dashManifestModel.getIsTextTrack(type)) {
             eventBus.on(Events.TIMED_TEXT_REQUESTED, onTimedTextRequested, this);
@@ -225,7 +227,8 @@ function ScheduleController(config) {
     function validate() {
         if (isStopped || playbackController.isPaused() && !scheduleWhilePaused) return;
         //log("validating", type);
-        let readyToLoad = bufferLevelRule.execute(streamProcessor);
+        let readyToLoad = bufferLevelRule.execute(streamProcessor) && 
+            isSegmentAvailableOnServerRule.execute(streamProcessor, adapter);
         if (readyToLoad && !isFragmentLoading &&
             (dashManifestModel.getIsTextTrack(type) || !bufferController.getIsAppendingInProgress())) {
             isFragmentLoading = true;
@@ -287,6 +290,8 @@ function ScheduleController(config) {
     }
 
     function onFragmentLoadingCompleted(e) {
+
+
         if (e.sender !== fragmentModel) return;
 
         if (!isNaN(e.request.index)) {

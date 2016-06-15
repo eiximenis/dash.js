@@ -239,6 +239,11 @@ function RepresentationController() {
         for (var i = 0, ln = availableRepresentations.length; i < ln; i++) {
             rep = availableRepresentations[i];
             rep.segmentAvailabilityRange = timelineConverter.calcSegmentAvailabilityRange(rep, isDynamic);
+
+            if (rep.segmentAvailabilityRange.end < rep.segmentAvailabilityRange.start) {
+                debugger;
+                rep.segmentAvailabilityRange = timelineConverter.calcSegmentAvailabilityRange(rep, isDynamic);
+            }
         }
     }
 
