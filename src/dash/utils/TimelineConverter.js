@@ -149,7 +149,7 @@ function TimelineConverter() {
             availableSegmentsStartTime,
             availableSegmentsEndTime;
 
-        if (!isDynamic || representation.adaptation.period.mpd.manifest.isSmoothStreaming) return range;
+        if (!isDynamic) return range;
 
         if (!isClientServerTimeSyncCompleted && representation.segmentAvailabilityRange) {
             return representation.segmentAvailabilityRange;
@@ -157,6 +157,7 @@ function TimelineConverter() {
 
 
         checkTime = representation.adaptation.period.mpd.checkTime;
+
         now = calcPresentationTimeFromWallTime(new Date(), representation.adaptation.period);
 
         //the Media Segment list is further restricted by the CheckTime together with the MPD attribute

@@ -659,6 +659,8 @@ function DashManifestModel() {
             fetchTime = getFetchTime(manifest, period);
             checkTime = fetchTime + manifest.minimumUpdatePeriod;
         }
+
+
         // TODO If the MPD@minimumUpdatePeriod attribute in the client is not provided, external means are used to
         // determine CheckTime, such as a priori knowledge, or HTTP cache headers, etc.
 

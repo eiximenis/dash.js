@@ -607,11 +607,7 @@ function MssParser() {
             mpd.BaseURL = baseURL;
             //CCE
             mpd.minBufferTime = 12; // DEFAULT_MIN_BUFFER_TIME
-            
-            // In case of live streams, set availabilityStartTime property according to DVRWindowLength
-            if (isDynamic) {
-                mpd.availabilityStartTime = new Date(manifestLoadedTime.getTime() - (mpd.timeShiftBufferDepth * 1000));
-            }
+
 
             // Map period node to manifest root node
             if (mpd.type==="csm") {
@@ -627,9 +623,12 @@ function MssParser() {
                 mpd.hasClips = false;
                 if (isDynamic) {
                     mpd.Period.duration = dvrWindowLength /  TIME_SCALE_100_NANOSECOND_UNIT;
+                    //mpd.minimumUpdatePeriod = 1;
                     log('[MssParser] LIVE -> Initializing IsSegmentAvailableOnServerRule rule');
                     isSegmentAvailableOnServerRule.init(getLastSegmentTimeFor(mpd.Period, "video"), "video");
                     isSegmentAvailableOnServerRule.init(getLastSegmentTimeFor(mpd.Period, "audio"), "audio");
+                    // In case of live streams, set availabilityStartTime property according to DVRWindowLength
+                    calcAvailabilityStartTime(mpd);
                 }
             }
             
@@ -712,6 +711,25 @@ function MssParser() {
             mpd.isSmoothStreaming = true;
             
             return mpd;
+        },
+        calcAvailabilityStartTime = function(mpd) {    
+            // mpd.availabilityStartTime = new Date(manifestLoadedTime.getTime() - (mpd.timeShiftBufferDepth * 1000));
+            let period = mpd.Period;
+            let availabilityStartTime = Infinity;
+            for (let aidx = 0; aidx < period.AdaptationSet_asArray.length; aidx++) {
+                let adaptation = period.AdaptationSet_asArray[aidx];
+                let segmentTimeline =adaptation.SegmentTemplate.SegmentTimeline; 
+                let segments = segmentTimeline.S_asArray;
+                let first_t = segments[0].t / TIME_SCALE_100_NANOSECOND_UNIT;
+                let now = new Date().getTime();
+                let adaptAvailabilityStartTime = now - first_t * 1000;
+                if (availabilityStartTime > adaptAvailabilityStartTime) {
+                    availabilityStartTime = adaptAvailabilityStartTime;
+                }
+            }
+            availabilityStartTime -= (mpd.timeShiftBufferDepth * 1000);
+            mpd.availabilityStartTime = new Date(availabilityStartTime);
+            log('[MssParser] -> Set Manifest AvailabilityStartTime to ' + mpd.availabilityStartTime);
         },
 
         getLastSegmentTimeFor = function(period, mediaType) {
