@@ -41,6 +41,7 @@ import PlaybackController from './controllers/PlaybackController';
 import DashHandler from '../dash/DashHandler';
 import MssHandler from '../mss/MssHandler';
 import SegmentBaseLoader from '../dash/SegmentBaseLoader';
+import WebmSegmentBaseLoader from '../dash/WebmSegmentBaseLoader';
 import DashMetrics from '../dash/DashMetrics';
 import EventBus from '../core/EventBus';
 import Events from '../core/events/Events';
@@ -306,10 +307,17 @@ function Stream(config) {
         }
     }
 
-    function createIndexHandler() {
-        let segmentBaseLoader = SegmentBaseLoader(context).getInstance();
+    function isWebM (mimeType) {
+        let type = mimeType.split('/')[1];
+        return 'webm' === type.toLowerCase();
+    }
+
+    function createIndexHandler(mediaInfo) {
+
+        let segmentBaseLoader = isWebM(mediaInfo.mimeType) ? WebmSegmentBaseLoader(context).getInstance() : SegmentBaseLoader(context).getInstance();
         segmentBaseLoader.setConfig({
-            baseURLController: baseURLController
+            baseURLController: baseURLController,
+            metricsModel: MetricsModel(context).getInstance()
         });
         segmentBaseLoader.initialize();
         let handler = null;
@@ -341,7 +349,7 @@ function Stream(config) {
 
     function createStreamProcessor(mediaInfo, manifest, mediaSource, optionalSettings) {
         var streamProcessor = StreamProcessor(context).create({
-            indexHandler: createIndexHandler(),
+            indexHandler: createIndexHandler(mediaInfo),
             timelineConverter: timelineConverter,
             adapter: adapter,
             manifestModel: manifestModel
