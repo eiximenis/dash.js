@@ -3,7 +3,7 @@
  * included below. This software may be subject to other third party and contributor
  * rights, including patent rights, and no such rights are granted under this license.
  *
- * Copyright (c) 2013, Dash Industry Forum.
+ * Copyright (c) 2016, Plain Concepts
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -60,9 +60,7 @@ function IsSegmentAvailableOnServerRule(config) {
         var secondsDiff = (now - syncInfo.now) / 1000.0;
         var timeDiff = time - syncInfo.lastServerTime;
         var isAvailable =  timeDiff < secondsDiff;
-
-        console.log('[IsSegmentAvailableOnServerRule] -> Data ', {syncInfo, now, time,secondsDiff, timeDiff});
-
+        
         if (!isAvailable) {
             log('[IsSegmentAvailableOnServerRule] -> Segment of ' + type + ' with time ' + time + ' not still in server');
         }
