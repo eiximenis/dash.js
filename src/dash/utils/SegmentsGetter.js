@@ -58,7 +58,8 @@ function SegmentsGetter(config, isDynamic) {
             segments = representation.segments;
         } else {
             if (type === 'SegmentTimeline') {
-                segments = timelineSegmentsGetter.getSegments(representation, requestedTime, index, availabilityUpperLimit);
+                let isMss = context.type === "mss"; 
+                segments = timelineSegmentsGetter.getSegments(representation, requestedTime, index, availabilityUpperLimit, isMss);
             } else if (type === 'SegmentTemplate') {
                 segments = templateSegmentsGetter.getSegments(representation, requestedTime, index, availabilityUpperLimit);
             } else if (type === 'SegmentList') {

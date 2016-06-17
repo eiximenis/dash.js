@@ -398,36 +398,51 @@ function MssParser() {
                 chunks = domParser.getChildNodes(streamIndex, "c"),
                 segments = [],
                 i,
-                t, d,
+                t, d,r,
                 total_d;
 
             total_d = 0;
+            let idx_segment = 0;
             for (i = 0; i < chunks.length; i++) {
                 // Get time and duration attributes
                 t = parseFloat(domParser.getAttributeValue(chunks[i], "t"));
                 d = parseFloat(domParser.getAttributeValue(chunks[i], "d"));
-                total_d += d;
+                r = parseFloat(domParser.getAttributeValue(chunks[i], "r"));
+                if (isNaN(r)) { r = 1;}
 
-                if ((i === 0) && !t) {
-                    t = 0;
-                }
 
-                if (i > 0) {
-                    // Update previous segment duration if not defined
-                    if (!segments[segments.length - 1].d) {
-                        segments[segments.length - 1].d = t - segments[segments.length - 1].t;
+                // We need to 'r' segments for this chunk.
+                // Even though DASHJS is ready to accept SegmentTimeline with
+                // segments containing the @r attribute, we cannot use that
+                // because MssFragmentController is not ready to handle SegmentTimeline
+                // having @r attributes. So, it is safer to "unroll" all @r at this
+                // point
+                for (var r_idx = 0; r_idx < r; r_idx++) {
+                    total_d += d;
+                    if (((idx_segment === 0) && !t) || (r_idx > 0)) {
+                        t = 0;
                     }
-                    // Set segment absolute timestamp if not set
-                    if (!t) {
-                        t = segments[segments.length - 1].t + segments[segments.length - 1].d;
-                    }
-                }
 
-                // Create new segment
-                segments.push({
-                    d: d,
-                    t: t
-                });
+                    if (t) { console.log('UFO => t:' + t);}
+
+                    if (idx_segment > 0) {
+                        // Update previous segment duration if not defined
+                        if (!segments[segments.length - 1].d) {
+                            segments[segments.length - 1].d = t - segments[segments.length - 1].t;
+                        }
+                        // Set segment absolute timestamp if not set
+                        if (!t) {
+                            t = segments[segments.length - 1].t + segments[segments.length - 1].d;                         
+                        }
+                    }
+                    // Create new segment
+                    var segment = {
+                        d: d,
+                        t: t
+                    }
+                    segments.push(segment);
+                    idx_segment++;
+                }
 
             }
 
@@ -738,7 +753,8 @@ function MssParser() {
                 if (adaptation.contentType === mediaType) {
                     let segments = adaptation.SegmentTemplate.SegmentTimeline.S_asArray;
                     let last_t = segments[segments.length-1].t;
-                    return last_t / TIME_SCALE_100_NANOSECOND_UNIT;
+                    let last_d = segments[segments.length-1].d;
+                    return (last_t + last_d) /  TIME_SCALE_100_NANOSECOND_UNIT;
                 }
             }
 
@@ -753,9 +769,7 @@ function MssParser() {
                 mss2dash = null;
 
             log("[MssParser] Converting from XML.");
-            //CCE: WTF I'm doing!!!
 
-            
             xmlDoc = domParser.createXmlTree(data);
             xml = new Date();
 

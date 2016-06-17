@@ -436,6 +436,11 @@ function MssHandler(config) {
             }
         }
 
+
+        if (idx == -1) {
+            idx = segments[ln-1].availabilityIdx;
+        }
+
         return idx;
     }    
     

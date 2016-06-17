@@ -254,6 +254,8 @@ function MetricsModel() {
     function addDVRInfo(mediaType, currentTime, mpd, range) {
         var vo = new DVRInfo();
 
+        console.log('[MetricsModel] -> Added DVRInfo for ' + mediaType + ' with duration: ' + (range.end - range.start));
+
         vo.time = currentTime ;
         vo.range = range;
         vo.manifestInfo = mpd;
