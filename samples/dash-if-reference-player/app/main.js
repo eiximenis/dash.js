@@ -141,6 +141,9 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
     $scope.audioMetrics = null;
     $scope.streamMetrics = null;
 
+    var gradient = null;
+    var ctx = initVumeterControl();
+
     $scope.getVideoTreeMetrics = function () {
         var metrics = player.getMetricsFor("video");
         if (metrics) {
@@ -170,6 +173,16 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
       else
         this.$apply(fn);
     };
+
+    function initVumeterControl() {
+        var ctx =  document.getElementById("cnvVumeter").getContext("2d");
+        gradient = ctx.createLinearGradient(0,0,0,300);
+        gradient.addColorStop(1,'#000000');
+        gradient.addColorStop(0.75,'#ff0000');
+        gradient.addColorStop(0.25,'#ffff00');
+        gradient.addColorStop(0,'#ffffff');
+        return ctx;
+    }
 
     function getCribbedMetricsFor(type) {
         var metrics = player.getMetricsFor(type),
@@ -520,6 +533,8 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
     function createPlayer() {
         video = document.querySelector(".dash-video-player video");
         player = dashjs.MediaPlayer().create({type: $scope.selectedType});
+        // For drawing Vumeter
+        player.setAudioProcessorCallback(drawVumeter);
 
         $scope.version = player.getVersion();
 
@@ -543,6 +558,23 @@ app.controller('DashController', function($scope, Sources, Notes, Contributors, 
         controlbar.initialize();
         controlbar.disable() //controlbar.hide() // other option        
     }
+
+
+    ////////////////////////////////////////
+    //
+    // Vumeter
+    //
+    ////////////////////////////////////////
+    function drawVumeter(data) {
+        let volume = data.volume;
+        ctx.clearRect(0, 0, 60, 130);
+        ctx.fillStyle=gradient;
+        ctx.fillRect(0,130-volume,25,130);
+        ctx.fillRect(30,130-volume,25,130);
+
+
+    }
+
 
     ////////////////////////////////////////
     //

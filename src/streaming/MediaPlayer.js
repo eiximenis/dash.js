@@ -70,6 +70,10 @@ import TimelineConverter from '../dash/utils/TimelineConverter';
 // Mss
 import MssParser from '../mss/MssParser'
 
+// WebAudio
+
+import WebAudioController from '../webaudio/WebAudioController';
+
 /**
  * @module MediaPlayer
  * @description The MediaPlayer is the primary dash.js Module and a Facade to build your player around.
@@ -116,7 +120,9 @@ function MediaPlayer() {
         dashMetrics,
         dashManifestModel,
         videoModel,
-        textSourceBuffer;
+        textSourceBuffer,
+        webaudioController,
+        audioProcessorCallback;
 
     function setup() {
         mediaPlayerInitialized = false;
@@ -127,6 +133,7 @@ function MediaPlayer() {
         adapter = null;
         Events.extend(MediaPlayerEvents);
         mediaPlayerModel = MediaPlayerModel(context).getInstance(); 
+        audioProcessorCallback = null;
     }
 
     /**
@@ -779,6 +786,24 @@ function MediaPlayer() {
      */
     function getAutoPlay() {
         return autoPlay;
+    }
+
+    /**
+     * <p>Sets the callback for the WebAudio processor, called each time the analyser analyses the sound data</p>
+     * @default null
+     */
+    function setAudioProcessorCallback(callback) {
+        audioProcessorCallback = callback;
+        if (webaudioController) {
+            webaudioController.setAudioProcessorCallback = callback;
+        }
+    }
+    
+    /**
+     * Returns the webaudio analyser callback function
+     */
+    function getAudioProcessorCallback(callback) {
+        return callback;
     }
 
     /**
@@ -1676,6 +1701,9 @@ function MediaPlayer() {
             videoModel.setElement(element);
             detectProtection();
             detectMetricsReporting();
+            if (webaudioController === undefined) {
+                webaudioController = WebAudioController(context).create({audioProcessorCallback: audioProcessorCallback});
+            }
         }
         resetAndInitializePlayback();
     }
@@ -2058,7 +2086,9 @@ function MediaPlayer() {
         displayCaptionsOnTop: displayCaptionsOnTop,
         attachVideoContainer: attachVideoContainer,
         attachTTMLRenderingDiv: attachTTMLRenderingDiv,
-        reset: reset
+        reset: reset,
+        setAudioProcessorCallback: setAudioProcessorCallback,
+        getAudioProcessorCallback: getAudioProcessorCallback
     };
 
     setup();
